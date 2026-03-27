@@ -6,6 +6,7 @@ import { useSimulation } from '@/hooks/useSimulation'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { StatusBar } from '@/components/dashboard/StatusBar'
 import { MetricsGrid } from '@/components/dashboard/MetricsGrid'
+import { HealthScoreWidget } from '@/components/dashboard/health-score/HealthScoreWidget'
 import { ExpandedModal } from '@/components/dashboard/expanded/ExpandedModal'
 import { Toast } from '@/components/ui/Toast'
 import type { WidgetId } from '@/lib/constants'
@@ -100,6 +101,7 @@ export default function DashboardClient() {
           </header>
 
           <LayoutGroup id="dashboard-widgets">
+            <HealthScoreWidget />
             <MetricsGrid
               editMode={editMode}
               expandedId={expandedId}

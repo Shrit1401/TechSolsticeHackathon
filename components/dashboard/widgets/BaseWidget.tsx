@@ -40,12 +40,13 @@ export const BaseWidget = ({
 
   return (
     <motion.article
+      data-widget-id={id}
       layoutId={layoutId}
       className={cn(
-        'group relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[20px] border border-white/[0.1] bg-black p-6 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-[border-color,box-shadow] duration-200 [font-family:var(--font-ui)]',
-        'hover:border-white/[0.16] hover:shadow-[0_4px_28px_rgba(0,0,0,0.5)]',
+        'group relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[20px] border border-white/20 bg-black p-6 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-[border-color,box-shadow] duration-200 [font-family:var(--font-ui)]',
+        'hover:border-white/35 hover:shadow-[0_4px_28px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]',
         colSpanClass,
-        editMode && 'ring-1 ring-white/10',
+        editMode && 'ring-1 ring-white/25',
         isDragging && 'z-50 scale-[1.04] shadow-[0_16px_48px_rgba(0,0,0,0.5)]'
       )}
       initial={false}

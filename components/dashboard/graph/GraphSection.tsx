@@ -75,7 +75,7 @@ export function GraphSection() {
       </div>
 
       <motion.div
-        className="relative mt-8 overflow-hidden rounded-[22px] border border-white/[0.1] bg-black shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
+        className="relative mt-8 overflow-hidden rounded-[22px] border border-white/20 bg-black shadow-[0_16px_48px_rgba(0,0,0,0.5)]"
         style={{ perspective: 960, rotateX: my, rotateY: mx, transformStyle: 'preserve-3d' }}
         onMouseMove={onMove}
         onMouseLeave={onLeave}

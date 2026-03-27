@@ -195,7 +195,7 @@ function SortableWidget({
     <div ref={setNodeRef} style={style} className={cn(gridSpan, 'min-h-0 h-full w-full')}>
       {expandedId === id ? (
         <div
-          className="min-h-[min(60vh,420px)] w-full rounded-[20px] border border-dashed border-white/10 bg-black/20"
+          className="min-h-[min(60vh,420px)] w-full rounded-[20px] border border-dashed border-white/25 bg-black/20"
           aria-hidden
         />
       ) : (

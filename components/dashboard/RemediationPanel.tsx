@@ -31,7 +31,7 @@ function ActionCard({ action }: { action: RemediationAction }) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
       className={cn(
-        'rounded-xl px-4 py-3 border border-[#1f2937] glass-l1 transition-all duration-200 ease-out',
+        'rounded-xl px-4 py-3 border border-white/[0.1] glass-l1 transition-all duration-200 ease-out',
         'hover:border-[#00d4ff]/20',
         isInProgress && 'border-[#00d4ff]/35 shadow-[0_0_12px_rgba(0,212,255,0.12)]',
         isCompleted && 'opacity-75'

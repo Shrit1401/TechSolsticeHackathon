@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Michroma } from "next/font/google";
+import { Inter, Michroma, Oxanium } from "next/font/google";
 import "./globals.css";
 
 const heroDisplay = Michroma({
@@ -15,6 +15,14 @@ const uiSans = Inter({
   variable: "--font-ui",
 });
 
+/** Thin geometric numerals for tiles & chart axes (wide, tech HUD feel) */
+const numericDisplay = Oxanium({
+  subsets: ["latin"],
+  weight: ["200", "300", "400", "500"],
+  display: "swap",
+  variable: "--font-numeric-display",
+});
+
 export const metadata: Metadata = {
   title: "AI Observability — Control Center",
   description: "Real-time distributed system monitoring with anomaly detection, root cause analysis, and auto-remediation",
@@ -26,7 +34,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark h-full antialiased ${heroDisplay.variable} ${uiSans.variable}`}>
+    <html
+      lang="en"
+      className={`dark h-full antialiased ${heroDisplay.variable} ${uiSans.variable} ${numericDisplay.variable}`}
+    >
       <head>
         <link
           href="https://api.fontshare.com/v2/css?f[]=clash-display@300&display=swap"
@@ -37,7 +48,9 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+      </body>
     </html>
   );
 }

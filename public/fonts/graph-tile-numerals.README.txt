@@ -1,0 +1,8 @@
+Add your font file here as either:
+
+  graph-tile-numerals.woff2   (recommended)
+  graph-tile-numerals.ttf
+
+CSS font-family name: Graph Tile Numerals
+
+Until a file is present, tiles fall back to Oxanium (bundled).

@@ -29,11 +29,11 @@ function ChartTooltip({
   const row = payload[0]?.payload
   if (!row) return null
   return (
-    <div className="rounded-xl border border-white/[0.08] bg-[#0a0a0a]/95 px-3.5 py-2.5 shadow-xl backdrop-blur-xl">
-      <p className="text-[11px] text-white/40 tabular-nums">
+    <div className="rounded-xl border border-white/[0.1] bg-black px-3.5 py-2.5 shadow-xl">
+      <p className="font-numeric-dial text-[11px] text-white/40">
         {typeof label === 'number' ? new Date(label).toLocaleString() : '—'}
       </p>
-      <div className="mt-2 space-y-1 font-medium tabular-nums text-[13px]">
+      <div className="mt-2 space-y-1 font-numeric-dial text-[13px]">
         <p className="text-emerald-300/95">{Math.round(row.rr)} req/s</p>
         <p className="text-red-300/90">{row.er.toFixed(2)}% err</p>
         <p className="text-sky-200/85">{Math.round(row.lat)} ms</p>
@@ -49,6 +49,8 @@ type GraphMainChartProps = {
   gradientId: string
   className?: string
   isFocus?: boolean
+  /** Overrides default axis tick formatting */
+  tickFormatter?: (ts: number) => string
 }
 
 export function GraphMainChart({
@@ -58,12 +60,24 @@ export function GraphMainChart({
   gradientId,
   className,
   isFocus,
+  tickFormatter: tickFormatterProp,
 }: GraphMainChartProps) {
   const avgErr = useMemo(() => averageError(data), [data])
   const tHealth = healthT(avgErr)
   const colors = mixHealthColors(tHealth)
 
   const lastIdx = Math.max(0, data.length - 1)
+
+  const axisTick = {
+    fill: 'rgba(156,163,175,0.5)',
+    fontSize: 10,
+    fontFamily: "'Graph Tile Numerals', var(--font-numeric-display), var(--font-ui), sans-serif",
+    fontWeight: 200,
+  } as const
+  const axisTickRight = {
+    ...axisTick,
+    fill: 'rgba(248,113,113,0.5)',
+  } as const
 
   return (
     <div className={cn('relative w-full min-w-0', className)} style={{ height }}>
@@ -75,6 +89,13 @@ export function GraphMainChart({
               <stop offset="50%" stopColor={colors.mid} stopOpacity={0.1} />
               <stop offset="100%" stopColor={colors.top} stopOpacity={0} />
             </linearGradient>
+            <filter id={`${gradientId}-glow`} x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation={isFocus ? 3 : 2} result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
           </defs>
 
           <CartesianGrid stroke="rgba(255,255,255,0.045)" strokeDasharray="3 10" vertical={false} />
@@ -83,15 +104,17 @@ export function GraphMainChart({
             type="number"
             dataKey="t"
             domain={['dataMin', 'dataMax']}
-            tickFormatter={ts => formatAxisTime(ts as number, range)}
-            tick={{ fill: 'rgba(156,163,175,0.5)', fontSize: 10 }}
+            tickFormatter={ts =>
+              tickFormatterProp ? tickFormatterProp(ts as number) : formatAxisTime(ts as number, range)
+            }
+            tick={axisTick}
             tickLine={false}
             axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
             minTickGap={28}
           />
           <YAxis
             yAxisId="left"
-            tick={{ fill: 'rgba(156,163,175,0.45)', fontSize: 10 }}
+            tick={axisTick}
             tickLine={false}
             axisLine={false}
             width={46}
@@ -100,7 +123,7 @@ export function GraphMainChart({
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fill: 'rgba(248,113,113,0.5)', fontSize: 10 }}
+            tick={axisTickRight}
             tickLine={false}
             axisLine={false}
             width={38}
@@ -117,9 +140,23 @@ export function GraphMainChart({
             yAxisId="left"
             type="natural"
             dataKey="rr"
+            fill="none"
             stroke={colors.stroke}
-            strokeWidth={isFocus ? 2.25 : 1.85}
-            strokeOpacity={0.95}
+            strokeWidth={isFocus ? 8 : 6}
+            strokeOpacity={0.15}
+            dot={false}
+            activeDot={false}
+            isAnimationActive={false}
+            filter={`url(#${gradientId}-glow)`}
+          />
+
+          <Area
+            yAxisId="left"
+            type="natural"
+            dataKey="rr"
+            stroke={colors.stroke}
+            strokeWidth={isFocus ? 2.3 : 1.9}
+            strokeOpacity={0.96}
             fill={`url(#${gradientId})`}
             fillOpacity={1}
             dot={(props: { cx?: number; cy?: number; index?: number }) => {
@@ -142,7 +179,7 @@ export function GraphMainChart({
             }}
             activeDot={{ r: 6, fill: colors.stroke, stroke: 'rgba(255,255,255,0.4)', strokeWidth: 1 }}
             isAnimationActive
-            animationDuration={480}
+            animationDuration={420}
             animationEasing="ease-out"
           />
 

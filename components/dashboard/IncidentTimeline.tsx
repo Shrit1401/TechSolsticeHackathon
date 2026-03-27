@@ -27,7 +27,7 @@ export function IncidentTimeline() {
       {incidentTimeline.length === 0 ? (
         <p className="text-[0.875rem] leading-[1.6] text-[#4b5563] py-1">No incidents recorded.</p>
       ) : (
-        <ul className="flex flex-col gap-0 divide-y divide-[#1f2937]">
+        <ul className="flex flex-col gap-0 divide-y divide-white/[0.08]">
           <AnimatePresence initial={false}>
             {incidentTimeline.map(ev => (
               <motion.li

@@ -28,7 +28,7 @@ function ServiceCard({ service }: { service: Service }) {
   return (
     <div
       className={cn(
-        'glass-l2 glass-l2-interactive p-6 border border-[#1f2937]',
+        'glass-l2 glass-l2-interactive p-6 border border-white/[0.1]',
         isDown && 'border-red-500/30',
         isDegraded && 'border-amber-500/25'
       )}

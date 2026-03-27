@@ -72,7 +72,7 @@ function MetricCard({
   return (
     <motion.article
       className={cn(
-        'relative overflow-hidden rounded-[22px] border border-white/[0.07] bg-white/[0.03] p-6 md:p-7',
+        'relative overflow-hidden rounded-[22px] border border-white/[0.1] bg-black p-6 md:p-7',
         'shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_32px_rgba(0,0,0,0.35)]',
         'backdrop-blur-xl'
       )}
@@ -97,15 +97,15 @@ function MetricCard({
       </div>
       <div className="relative">
         <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/35">{label}</p>
-        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-black/25 px-2.5 py-1">
+        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-white/[0.1] bg-black px-2.5 py-1">
           <span className={cn('h-1.5 w-1.5 rounded-full', stateDot(state))} />
           <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">{stateText(state)}</span>
         </div>
-        <p className={cn('mt-3 text-4xl font-semibold tabular-nums tracking-tight md:text-[2.75rem]', accentClass)}>
+        <p className={cn('mt-3 font-numeric-dial text-4xl tracking-tight md:text-[2.75rem]', accentClass)}>
           {valueStr}
           {unit ? <span className="ml-1.5 text-lg font-medium text-white/30 md:text-xl">{unit}</span> : null}
         </p>
-        <p className={cn('mt-2 text-[13px] tabular-nums', deltaClass)} aria-live="polite">
+        <p className={cn('mt-2 font-numeric-dial text-[13px]', deltaClass)} aria-live="polite">
           {deltaFmt(delta)} <span className="text-white/25">vs prior</span>
         </p>
       </div>

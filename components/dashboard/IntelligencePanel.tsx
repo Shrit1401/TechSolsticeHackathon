@@ -15,7 +15,7 @@ export function IntelligencePanel() {
           <h2 className="section-label mb-6">Root cause</h2>
           <RootCausePanel variant="embedded" />
         </div>
-        <div className="min-w-0 lg:border-l lg:border-[#1f2937] lg:pl-10">
+        <div className="min-w-0 lg:border-l lg:border-white/[0.1] lg:pl-10">
           <div className="flex items-baseline justify-between gap-3 mb-6">
             <h2 className="section-label">Remediation</h2>
             <span className="text-[11px] font-mono text-[#4b5563] tabular-nums">

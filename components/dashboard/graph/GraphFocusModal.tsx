@@ -25,7 +25,7 @@ export function GraphFocusModal({
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-100 bg-black/80 backdrop-blur-md transition-opacity data-ending-style:opacity-0 data-starting-style:opacity-0" />
         <Dialog.Viewport className="fixed inset-0 z-100 flex items-center justify-center p-4 pointer-events-none">
-          <Dialog.Popup className="pointer-events-auto flex max-h-[min(92vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#0a0a0a]/95 p-6 shadow-2xl outline-none backdrop-blur-2xl md:p-10 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0">
+          <Dialog.Popup className="pointer-events-auto flex max-h-[min(92vh,880px)] w-full max-w-5xl flex-col overflow-hidden rounded-[28px] border border-white/[0.1] bg-black p-6 shadow-2xl outline-none md:p-10 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <Dialog.Title className="text-[11px] font-medium uppercase tracking-[0.16em] text-white/40">
@@ -38,7 +38,7 @@ export function GraphFocusModal({
               </div>
               <Dialog.Close
                 type="button"
-                className="rounded-xl border border-white/[0.08] bg-white/[0.04] p-2.5 text-white/45 transition-colors hover:border-white/20 hover:text-white"
+                className="rounded-xl border border-white/[0.1] bg-black p-2.5 text-white/45 transition-colors hover:border-white/20 hover:text-white"
                 aria-label="Close"
               >
                 <X className="size-5" strokeWidth={1.75} />

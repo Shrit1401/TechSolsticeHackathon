@@ -144,7 +144,7 @@ export function RootCausePanel({ variant = 'default' }: RootCausePanelProps) {
             {/* Dependency graph */}
             <div>
               <p className="section-label mb-2">Dependency map</p>
-              <div className="glass-l1 rounded-xl p-3 border border-[#1f2937]">
+              <div className="glass-l1 rounded-xl p-3 border border-white/[0.1]">
                 <DependencyGraph dependencies={rootCause.dependencies} rootService={rootCause.service} />
               </div>
             </div>

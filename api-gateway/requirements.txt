@@ -1,0 +1,8 @@
+# HTTP API framework
+fastapi
+# ASGI server that runs the FastAPI app
+uvicorn
+# Async client used to call user-service and payment-service
+httpx
+# Exposes /metrics in Prometheus text format
+prometheus_client

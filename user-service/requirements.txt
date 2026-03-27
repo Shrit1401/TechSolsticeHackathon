@@ -1,0 +1,6 @@
+# HTTP API framework
+fastapi
+# ASGI server that runs the FastAPI app
+uvicorn
+# Exposes /metrics in Prometheus text format
+prometheus_client

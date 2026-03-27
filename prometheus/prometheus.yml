@@ -1,0 +1,12 @@
+# How often Prometheus pulls metrics from each target.
+global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: "services"
+    static_configs:
+      - targets:
+          # Each service exposes /metrics on its container port (Compose network DNS).
+          - user-service:8001
+          - payment-service:8002
+          - api-gateway:8000

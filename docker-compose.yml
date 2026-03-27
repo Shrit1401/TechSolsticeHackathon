@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  user-service:
+    build: ./user-service
+    ports:
+      - "8001:8001"
+
+  payment-service:
+    container_name: payment-service
+    build: ./payment-service
+    ports:
+      - "8002:8002"
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "8000:8000"
+    depends_on:
+      - user-service
+      - payment-service
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  detector-service:
+    build: ./detector-service
+    ports:
+      - "8003:8003"
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+      GATEWAY_METRICS_URL: http://api-gateway:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - prometheus
+      - api-gateway
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+  loki:
+    image: grafana/loki:2.9.0
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki/loki-config.yml:/etc/loki/loki-config.yml
+    ports:
+      - "3100:3100"
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: promtail
+    command: -config.file=/etc/promtail/promtail-config.yml
+    volumes:
+      - ./promtail/promtail-config.yml:/etc/promtail/promtail-config.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - loki
+
+
+volumes:
+  grafana-storage:

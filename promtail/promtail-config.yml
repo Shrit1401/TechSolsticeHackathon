@@ -1,0 +1,25 @@
+# Promtail HTTP server (scrapes config UI / readiness on this port).
+server:
+  http_listen_port: 9080
+
+# Tracks read offsets so log shipping resumes after restarts.
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      # Discover running containers via the host Docker socket (mounted in Compose).
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: container
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: service
+      - target_label: job
+        replacement: docker

@@ -9,4 +9,8 @@ scrape_configs:
           # Each service exposes /metrics on its container port (Compose network DNS).
           - user-service:8001
           - payment-service:8002
+          - order-service:8004
+          - inventory-service:8005
+          - notification-service:8006
+          - auth-service:8007
           - api-gateway:8000

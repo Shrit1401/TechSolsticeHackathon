@@ -6,3 +6,8 @@ uvicorn
 httpx
 # Exposes /metrics in Prometheus text format
 prometheus_client
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp-proto-grpc
+opentelemetry-instrumentation-fastapi
+opentelemetry-instrumentation-httpx

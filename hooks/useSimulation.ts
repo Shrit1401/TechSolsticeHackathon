@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect } from 'react'
+import { adaptiveMetricsFreezeRef } from '@/lib/adaptiveMetricsFreeze'
 import { useDashboardStore } from '@/store/dashboardStore'
 
 export function useSimulation() {
   useEffect(() => {
     const id = setInterval(() => {
+      if (adaptiveMetricsFreezeRef.current) return
       useDashboardStore.getState().tickMetrics()
     }, 2000)
     return () => clearInterval(id)

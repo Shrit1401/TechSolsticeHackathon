@@ -36,7 +36,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MetricCardMotionContext } from "@/contexts/MetricCardMotionContext";
 import { useWidgetCardStatus } from "@/hooks/useWidgetCardStatus";
-import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
+import { AdaptiveStatusBar } from "@/components/dashboard/AdaptiveStatusBar";
 import type { IssueRow } from "@/lib/priorityScore";
 
 /** Smoother reflow than default 200ms ease — matches dashboard motion curves */
@@ -95,14 +95,14 @@ export function MetricsGrid({
   onExpandedChange,
   adaptiveEngaged,
   adaptiveRestoring,
-  getAdaptiveTileClassName,
+  adaptiveEnabled,
+  showAdaptiveChrome,
+  getTileAdaptiveStatus,
   adaptiveLayoutTransition,
   issues,
-  bannerDismissed,
-  onDismissBanner,
 }: {
   order: WidgetId[];
-  setOrder: (next: WidgetId[]) => void;
+  setOrder: (next: WidgetId[], options?: { persist?: boolean }) => void;
   sizes: Record<WidgetId, WidgetSize>;
   toggleSize: (id: WidgetId) => void;
   hydrated: boolean;
@@ -112,11 +112,11 @@ export function MetricsGrid({
   onExpandedChange: (id: WidgetId | null) => void;
   adaptiveEngaged: boolean;
   adaptiveRestoring: boolean;
-  getAdaptiveTileClassName: (id: WidgetId) => string;
+  adaptiveEnabled: boolean;
+  showAdaptiveChrome: boolean;
+  getTileAdaptiveStatus: (id: WidgetId) => "healthy" | "watch" | "critical";
   adaptiveLayoutTransition: { duration: number; ease: number[] };
   issues: IssueRow[];
-  bannerDismissed: boolean;
-  onDismissBanner: () => void;
 }) {
   const [activeDragId, setActiveDragId] = useState<WidgetId | null>(null);
 
@@ -156,12 +156,7 @@ export function MetricsGrid({
 
   return (
     <div className="relative flex flex-col gap-4">
-      <IncidentBanner
-        visible={adaptiveEngaged && !adaptiveRestoring}
-        issues={issues}
-        dismissed={bannerDismissed}
-        onDismiss={onDismissBanner}
-      />
+      <AdaptiveStatusBar visible={showAdaptiveChrome} issues={issues} />
 
       {editMode && !adaptiveEngaged && (
         <p className="max-w-xl text-[13px] font-normal tracking-[0.06em] text-[var(--text-tertiary)] [font-family:var(--font-hero-display)] sm:text-[0.875rem]">
@@ -180,6 +175,7 @@ export function MetricsGrid({
           <div
             className={cn(
               "grid grid-cols-1 auto-rows-[280px] md:items-stretch",
+              showAdaptiveChrome && "adaptive-engaged",
               compactMode
                 ? "gap-3 md:grid-cols-2 lg:grid-cols-5 lg:gap-3 lg:auto-rows-[minmax(240px,280px)]"
                 : "gap-4 md:grid-cols-3",
@@ -198,7 +194,9 @@ export function MetricsGrid({
                 onToggleSize={() => toggleSize(id)}
                 adaptiveEngaged={adaptiveEngaged}
                 adaptiveRestoring={adaptiveRestoring}
-                getAdaptiveTileClassName={getAdaptiveTileClassName}
+                adaptiveEnabled={adaptiveEnabled}
+                showAdaptiveChrome={showAdaptiveChrome}
+                getTileAdaptiveStatus={getTileAdaptiveStatus}
                 adaptiveLayoutTransition={adaptiveLayoutTransition}
               />
             ))}
@@ -225,7 +223,9 @@ function SortableWidget({
   onToggleSize,
   adaptiveEngaged,
   adaptiveRestoring,
-  getAdaptiveTileClassName,
+  adaptiveEnabled,
+  showAdaptiveChrome,
+  getTileAdaptiveStatus,
   adaptiveLayoutTransition,
 }: {
   id: WidgetId;
@@ -238,7 +238,9 @@ function SortableWidget({
   onToggleSize: () => void;
   adaptiveEngaged: boolean;
   adaptiveRestoring: boolean;
-  getAdaptiveTileClassName: (id: WidgetId) => string;
+  adaptiveEnabled: boolean;
+  showAdaptiveChrome: boolean;
+  getTileAdaptiveStatus: (id: WidgetId) => "healthy" | "watch" | "critical";
   adaptiveLayoutTransition: { duration: number; ease: number[] };
 }) {
   const {
@@ -262,7 +264,7 @@ function SortableWidget({
   /** In compact mode all tiles share one cell and 1×1 chart density; stored sizes apply again when compact is off. */
   const layoutSize: WidgetSize = compactMode ? "1x1" : size;
   const gridSpan = widgetGridClass(layoutSize, compactMode);
-  const status = useWidgetCardStatus(id);
+  const status = useWidgetCardStatus(id, { adaptiveEnabled });
   const countUpDelayMs = Math.round((0.15 + index * 0.08) * 1000) + 500;
   const layoutOn = adaptiveEngaged && !editMode && !adaptiveRestoring;
 
@@ -313,7 +315,7 @@ function SortableWidget({
                 dragListeners={editMode ? listeners : undefined}
                 onExpand={onExpand}
                 onResize={editMode ? onToggleSize : undefined}
-                adaptiveSurfaceClassName={getAdaptiveTileClassName(id)}
+                adaptiveTileStatus={showAdaptiveChrome ? getTileAdaptiveStatus(id) : null}
               >
                 <WidgetBody id={id} />
               </BaseWidget>

@@ -17,32 +17,6 @@ import { cn } from '@/lib/utils'
 import { useGridLayout } from '@/hooks/useGridLayout'
 import { useAdaptiveMode } from '@/hooks/useAdaptiveMode'
 
-function LocalTimeClock() {
-  const [now, setNow] = useState(() => new Date())
-  useEffect(() => {
-    const id = window.setInterval(() => setNow(new Date()), 1000)
-    return () => window.clearInterval(id)
-  }, [])
-  const formatted = now.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  return (
-    <div className="flex flex-col items-end gap-2 text-right">
-      <span className="text-[11px] font-normal uppercase tracking-[0.06em] text-[var(--text-tertiary)] [font-family:var(--font-hero-display)] sm:text-xs">
-        Local time
-      </span>
-      <time
-        dateTime={now.toISOString()}
-        className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)] [font-family:var(--font-ui)] sm:text-5xl md:text-6xl lg:text-7xl"
-      >
-        {formatted}
-      </time>
-    </div>
-  )
-}
-
 const COMPACT_MODE_KEY = 'aiops-compact-mode'
 
 export default function DashboardClient() {
@@ -107,8 +81,6 @@ function DashboardClientInner() {
   const adaptive = useAdaptiveMode({
     order,
     setOrder,
-    compactMode,
-    setCompactMode,
     hydrated: gridHydrated && compactHydrated,
     editMode,
     setEditMode,
@@ -172,22 +144,16 @@ function DashboardClientInner() {
               </div>
 
               <div className="flex w-full shrink-0 flex-col items-end lg:w-auto">
-                <LocalTimeClock />
-                <div className="mt-8 flex w-[min(100%,280px)] flex-col gap-2">
+                <div className="mt-6 flex w-[min(100%,280px)] flex-col gap-2 lg:mt-0">
                   <AdaptiveModeButton
-                    phase={adaptive.phase}
-                    issueCount={adaptive.issueCount}
+                    enabled={adaptive.isEnabled}
+                    engaged={adaptive.isEngaged}
+                    restoring={adaptive.isRestoring}
                     onClick={adaptive.toggle}
                   />
                   <button
                     type="button"
-                    onClick={() => {
-                      const next = !compactMode
-                      if (adaptive.isEngaged) {
-                        adaptive.notifyManualCompactToggle(next)
-                      }
-                      setCompactMode(next)
-                    }}
+                    onClick={() => setCompactMode(!compactMode)}
                     className={cn(
                       'inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-full border px-5 py-3 text-[0.9375rem] font-medium shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-colors [font-family:var(--font-ui)]',
                       compactMode
@@ -239,11 +205,11 @@ function DashboardClientInner() {
               onExpandedChange={setExpandedId}
               adaptiveEngaged={adaptive.isEngaged}
               adaptiveRestoring={adaptive.isRestoring}
-              getAdaptiveTileClassName={adaptive.getTileClassName}
+              adaptiveEnabled={adaptive.isEnabled}
+              showAdaptiveChrome={adaptive.showAdaptiveChrome}
+              getTileAdaptiveStatus={adaptive.getTileStatus}
               adaptiveLayoutTransition={adaptive.adaptiveLayoutTransition}
               issues={adaptive.issues}
-              bannerDismissed={adaptive.bannerDismissed}
-              onDismissBanner={adaptive.dismissBanner}
             />
             <ExpandedModal
               widgetId={expandedId}

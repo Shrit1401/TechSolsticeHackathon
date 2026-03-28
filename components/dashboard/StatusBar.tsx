@@ -108,7 +108,7 @@ export function StatusBar({
         {/* Brand */}
         <div className="flex min-w-0 shrink-0 items-center gap-2.5 overflow-visible sm:gap-4">
           <div className="flex items-center gap-2.5 rounded-xl border border-white/[0.1] bg-black/50 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:gap-3 sm:px-3">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-cyan)]/12 ring-1 ring-[var(--accent-cyan)]/30">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-cyan)]/12 ring-1 ring-[var(--accent-cyan)]/30 sm:h-11 sm:w-11">
               <div className="absolute inset-0 rounded-lg bg-[radial-gradient(circle_at_30%_20%,rgba(0,212,255,0.35),transparent_55%)]" />
               <Activity className="relative h-5 w-5 text-[var(--accent-cyan)] sm:h-6 sm:w-6" strokeWidth={2} aria-hidden />
             </div>

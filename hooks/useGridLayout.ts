@@ -76,10 +76,12 @@ export function useGridLayout() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const setOrder = useCallback(
-    (next: WidgetId[]) => {
+    (next: WidgetId[], options?: { persist?: boolean }) => {
       setOrderState(next)
       orderRef.current = next
-      persist(next, sizesRef.current)
+      if (options?.persist !== false) {
+        persist(next, sizesRef.current)
+      }
     },
     [persist]
   )

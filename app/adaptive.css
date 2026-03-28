@@ -1,112 +1,80 @@
-/* Adaptive mode — header button */
-@keyframes adaptive-border-pulse {
-  0%,
+/* Adaptive mode v2 — severity stripe only (no dimming / pulsing borders) */
+
+@keyframes adaptive-status-flash {
+  0% {
+    background-color: rgba(255, 77, 106, 0.08);
+  }
   100% {
-    border-color: rgba(255, 23, 68, 0.2);
-  }
-  50% {
-    border-color: rgba(255, 23, 68, 0.45);
+    background-color: transparent;
   }
 }
 
+.metric-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: transparent;
+  transition:
+    background 0.4s ease,
+    box-shadow 0.4s ease;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.adaptive-engaged .metric-card[data-adaptive-status='critical']::after {
+  background: #ff4d6a;
+  box-shadow: 0 0 8px rgba(255, 77, 106, 0.3);
+}
+
+.adaptive-engaged .metric-card[data-adaptive-status='watch']::after {
+  background: #ffb020;
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.2);
+}
+
+.adaptive-engaged .metric-card[data-adaptive-status='healthy']::after {
+  background: rgba(0, 200, 83, 0.3);
+  box-shadow: none;
+}
+
+.metric-card.adaptive-status-just-changed {
+  animation: adaptive-status-flash 1s ease-out forwards;
+}
+
+/* Button: off = same as other dashboard pills; on = subtle cyan + dot handled in component */
 .adaptive-btn-off {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #7a8ba0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #000000;
+  color: #e5e7eb;
 }
 
-.adaptive-btn-idle {
+.adaptive-btn-on {
   background: rgba(0, 229, 255, 0.06);
   border: 1px solid rgba(0, 229, 255, 0.15);
-  color: #00e5ff;
+  color: #c0cdd8;
 }
 
-.adaptive-btn-active {
-  background: rgba(255, 23, 68, 0.08);
-  border: 1px solid rgba(255, 23, 68, 0.2);
-  color: #ff4d6a;
-  animation: adaptive-border-pulse 2s ease-in-out infinite;
+.adaptive-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-left: 8px;
+  flex-shrink: 0;
+  transition: background 0.3s ease;
 }
 
-/* Tile treatments (BaseWidget article) */
-@keyframes adaptive-critical-pulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 0 1px rgba(255, 23, 68, 0.3),
-      0 0 20px rgba(255, 23, 68, 0.1),
-      inset 0 0 20px rgba(255, 23, 68, 0.03);
-  }
-  50% {
-    box-shadow:
-      0 0 0 1px rgba(255, 23, 68, 0.5),
-      0 0 35px rgba(255, 23, 68, 0.15),
-      inset 0 0 30px rgba(255, 23, 68, 0.05);
-  }
+.adaptive-indicator-idle {
+  background: #00c853;
 }
 
-.adaptive-tile-critical {
-  position: relative;
-  border-color: rgba(255, 23, 68, 0.4) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 23, 68, 0.3),
-    0 0 20px rgba(255, 23, 68, 0.1),
-    inset 0 0 20px rgba(255, 23, 68, 0.03) !important;
-  animation: adaptive-critical-pulse 2s ease-in-out infinite;
-}
-
-.adaptive-tile-critical::before {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse at 20% 80%,
-    rgba(255, 23, 68, 0.08) 0%,
-    transparent 60%
-  );
-  z-index: 0;
-}
-
-.adaptive-tile-watch {
-  position: relative;
-  border-color: rgba(255, 176, 32, 0.3) !important;
-  box-shadow:
-    0 0 0 1px rgba(255, 176, 32, 0.2),
-    0 0 15px rgba(255, 176, 32, 0.06) !important;
-}
-
-.adaptive-tile-watch::before {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(
-    ellipse at 20% 80%,
-    rgba(255, 176, 32, 0.05) 0%,
-    transparent 60%
-  );
-  z-index: 0;
-}
-
-.adaptive-tile-healthy-dimmed {
-  opacity: 0.7;
-  transform: scale(0.98);
-  transition:
-    opacity 0.3s ease,
-    transform 0.3s ease;
-}
-
-.adaptive-tile-healthy-dimmed:hover {
-  opacity: 1;
-  transform: scale(1);
-}
-
-/* Ensure article children sit above ::before */
-.adaptive-tile-critical > *,
-.adaptive-tile-watch > * {
-  position: relative;
-  z-index: 1;
+.adaptive-indicator-engaged {
+  background: #ff4d6a;
 }

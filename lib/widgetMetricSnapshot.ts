@@ -9,7 +9,7 @@ import {
   generateStackedConnections,
 } from '@/lib/widgetMockData'
 import type { CardStatus } from '@/lib/widgetCardStatus'
-import { widgetCardStatus } from '@/lib/widgetCardStatus'
+import { widgetCardStatus, widgetCardStatusWithPrev } from '@/lib/widgetCardStatus'
 
 export type TileSeverityCategory =
   | 'error-rate'
@@ -67,9 +67,14 @@ const ctxBase = (c: MetricSnapshotCtx) => ({
   gaugePulse: c.gaugePulse,
 })
 
-export function getWidgetMetricSnapshot(id: WidgetId, c: MetricSnapshotCtx): TileMetricSnapshot {
+export function getWidgetMetricSnapshot(
+  id: WidgetId,
+  c: MetricSnapshotCtx,
+  prevStatus?: CardStatus,
+): TileMetricSnapshot {
   const ctx = ctxBase(c)
-  const status = widgetCardStatus(id, ctx)
+  const status =
+    prevStatus !== undefined ? widgetCardStatusWithPrev(id, ctx, prevStatus) : widgetCardStatus(id, ctx)
 
   switch (id) {
     case 'request-rate': {
@@ -190,6 +195,7 @@ export function getWidgetMetricSnapshot(id: WidgetId, c: MetricSnapshotCtx): Til
 export function buildAllWidgetSnapshots(
   ids: readonly WidgetId[],
   ctx: MetricSnapshotCtx,
+  prevById?: Partial<Record<WidgetId, CardStatus>>,
 ): TileMetricSnapshot[] {
-  return ids.map((id) => getWidgetMetricSnapshot(id, ctx))
+  return ids.map((id) => getWidgetMetricSnapshot(id, ctx, prevById?.[id]))
 }

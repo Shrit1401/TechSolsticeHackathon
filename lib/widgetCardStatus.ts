@@ -8,6 +8,15 @@ import {
   gaugeValue,
   generateStackedConnections,
 } from '@/lib/widgetMockData'
+import {
+  hysteresisAnomalyScore,
+  hysteresisConnectionsRatio,
+  hysteresisCpu,
+  hysteresisErrorRate,
+  hysteresisLatency,
+  hysteresisMemory,
+  hysteresisRequestRateDeviation,
+} from '@/lib/statusHysteresis'
 
 export type CardStatus = 'healthy' | 'watch' | 'critical'
 
@@ -125,16 +134,87 @@ function derivedLatest(
   return series[series.length - 1]?.value ?? base
 }
 
+type WidgetCtx = {
+  metrics: MetricsData
+  services: Service[]
+  anomalyCount: number
+  isSimulatingFailure: boolean
+  incidentCount: number
+  gaugePulse: number
+}
+
+/** Status with per-tile hysteresis (use previous output status as `prev`). */
+export function widgetCardStatusWithPrev(id: WidgetId, ctx: WidgetCtx, prev: CardStatus): CardStatus {
+  const { metrics, services, anomalyCount, isSimulatingFailure, incidentCount, gaugePulse } = ctx
+
+  switch (id) {
+    case 'request-rate': {
+      const v = metrics.requestRate[metrics.requestRate.length - 1]?.value ?? 0
+      const baseline =
+        metrics.requestRate.reduce((a, p) => a + p.value, 0) / Math.max(metrics.requestRate.length, 1) ||
+        BASELINE_REQUEST_RATE
+      const d = Math.abs(v - baseline) / Math.max(baseline, 1e-9)
+      return hysteresisRequestRateDeviation(d, prev)
+    }
+    case 'error-rate': {
+      const v = metrics.errorRate[metrics.errorRate.length - 1]?.value ?? 0
+      return hysteresisErrorRate(v, prev)
+    }
+    case 'latency': {
+      const v = metrics.latency[metrics.latency.length - 1]?.value ?? 0
+      return hysteresisLatency(v, prev)
+    }
+    case 'throughput': {
+      const merged = mergeMetrics(metrics.requestRate, metrics.errorRate, metrics.latency)
+      const slice = sliceByRange(merged, '5m')
+      const avg = averageError(slice)
+      return throughputBudgetStatus(avg)
+    }
+    case 'cpu':
+      return hysteresisCpu(gaugeValue(Date.now() + gaugePulse, 'cpu'), prev)
+    case 'memory':
+      return hysteresisMemory(gaugeValue(Date.now() + 99 + gaugePulse, 'mem'), prev)
+    case 'connections': {
+      const data = generateStackedConnections('5m')
+      const last = data[data.length - 1]
+      if (!last) return 'healthy'
+      const total = last.h1 + last.h2 + last.ws
+      return hysteresisConnectionsRatio(total / 1000, prev)
+    }
+    case 'anomaly': {
+      const score = anomalyScoreFromStore(anomalyCount, isSimulatingFailure)
+      return hysteresisAnomalyScore(score, prev)
+    }
+    case 'service-map':
+      return serviceMapStatus(services)
+    case 'incident-timeline':
+      return incidentTimelineStatus(incidentCount)
+    case 'queue-depth':
+      return queueDepthStatus(derivedLatest(metrics, 101, 48, 18))
+    case 'saturation':
+      return saturationPercentStatus(
+        derivedLatest(metrics, 102, 62, 8, { min: 0, max: 100 }),
+      )
+    case 'disk-io':
+      return diskIoStatus(derivedLatest(metrics, 103, 320, 45))
+    case 'network-in':
+      return networkInStatus(derivedLatest(metrics, 104, 840, 120))
+    case 'gc-pause':
+      return gcPauseStatus(derivedLatest(metrics, 105, 2.4, 0.85))
+    case 'cache-hit':
+      return cacheHitStatus(derivedLatest(metrics, 106, 94, 2, { min: 88, max: 100 }))
+    case 'thread-pool':
+      return cpuPercentStatus(derivedLatest(metrics, 107, 71, 9, { min: 0, max: 100 }))
+    case 'db-connections':
+      return dbConnectionsStatus(derivedLatest(metrics, 108, 128, 22))
+    default:
+      return widgetCardStatus(id, ctx)
+  }
+}
+
 export function widgetCardStatus(
   id: WidgetId,
-  ctx: {
-    metrics: MetricsData
-    services: Service[]
-    anomalyCount: number
-    isSimulatingFailure: boolean
-    incidentCount: number
-    gaugePulse: number
-  },
+  ctx: WidgetCtx,
 ): CardStatus {
   const { metrics, services, anomalyCount, isSimulatingFailure, incidentCount, gaugePulse } = ctx
 

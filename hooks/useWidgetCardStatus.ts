@@ -1,11 +1,16 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { WidgetId } from '@/lib/constants'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { widgetCardStatus } from '@/lib/widgetCardStatus'
+import type { CardStatus } from '@/lib/widgetCardStatus'
+import { widgetCardStatusWithPrev } from '@/lib/widgetCardStatus'
 
-export function useWidgetCardStatus(id: WidgetId) {
+const GAUGE_MS_NORMAL = 2_000
+const GAUGE_MS_ADAPTIVE = 5_000
+
+export function useWidgetCardStatus(id: WidgetId, opts?: { adaptiveEnabled?: boolean }) {
+  const adaptiveEnabled = opts?.adaptiveEnabled ?? false
   const metrics = useDashboardStore((s) => s.metrics)
   const services = useDashboardStore((s) => s.services)
   const anomalyCount = useDashboardStore((s) => s.anomalies.length)
@@ -15,28 +20,31 @@ export function useWidgetCardStatus(id: WidgetId) {
   const [gaugePulse, setGaugePulse] = useState(0)
   useEffect(() => {
     if (id !== 'cpu' && id !== 'memory') return
-    const t = window.setInterval(() => setGaugePulse((p) => p + 1), 2000)
+    const ms = adaptiveEnabled ? GAUGE_MS_ADAPTIVE : GAUGE_MS_NORMAL
+    const t = window.setInterval(() => setGaugePulse((p) => p + 1), ms)
     return () => window.clearInterval(t)
-  }, [id])
+  }, [id, adaptiveEnabled])
 
-  return useMemo(
+  const prevRef = useRef<CardStatus>('healthy')
+  const status = useMemo(
     () =>
-      widgetCardStatus(id, {
-        metrics,
-        services,
-        anomalyCount,
-        isSimulatingFailure,
-        incidentCount,
-        gaugePulse,
-      }),
-    [
-      id,
-      metrics,
-      services,
-      anomalyCount,
-      isSimulatingFailure,
-      incidentCount,
-      gaugePulse,
-    ],
+      widgetCardStatusWithPrev(
+        id,
+        {
+          metrics,
+          services,
+          anomalyCount,
+          isSimulatingFailure,
+          incidentCount,
+          gaugePulse,
+        },
+        prevRef.current,
+      ),
+    [id, metrics, services, anomalyCount, isSimulatingFailure, incidentCount, gaugePulse],
   )
+  useLayoutEffect(() => {
+    prevRef.current = status
+  }, [status])
+
+  return status
 }

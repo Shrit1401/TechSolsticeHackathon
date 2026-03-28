@@ -14,19 +14,23 @@ import { buildAllWidgetSnapshots, type MetricSnapshotCtx } from '@/lib/widgetMet
 import { useDashboardStore } from '@/store/dashboardStore'
 import { useHealthScore } from '@/hooks/useHealthScore'
 import { widgetMeta } from '@/components/dashboard/widgets/widgetContents'
+import { adaptiveMetricsFreezeRef } from '@/lib/adaptiveMetricsFreeze'
 
 const ADAPTIVE_ENABLED_KEY = 'aiops-adaptive-enabled'
-const GRACE_MS = 15_000
-/** Exit engaged adaptive layout when dashboard health score (animated) reaches this. */
+const GRACE_MS = 30_000
 const HEALTH_SCORE_EXIT_THRESHOLD = 75
+const HEALTH_EXIT_ENGAGE_GRACE_MS = 2_000
+const ADAPTIVE_GAUGE_PULSE_MS = 5_000
+const STATUS_RESORT_DEBOUNCE_MS = 5_000
+const RESORT_ANIM_MS = 800
+const RESTORE_APPLY_ORDER_MS = 600
+const RESTORE_LAYOUT_SETTLE_MS = 700
 
 export type AdaptivePhase = 'disabled' | 'watching' | 'engaged' | 'restoring'
 
 export type UseAdaptiveModeArgs = {
   order: WidgetId[]
-  setOrder: (next: WidgetId[]) => void
-  compactMode: boolean
-  setCompactMode: (v: boolean) => void
+  setOrder: (next: WidgetId[], options?: { persist?: boolean }) => void
   hydrated: boolean
   editMode: boolean
   setEditMode: (v: boolean) => void
@@ -36,15 +40,15 @@ export type UseAdaptiveModeArgs = {
 export type UseAdaptiveModeReturn = {
   isEnabled: boolean
   isEngaged: boolean
+  isAnimating: boolean
   isRestoring: boolean
   phase: AdaptivePhase
   issues: IssueRow[]
   issueCount: number
+  sortedTileOrder: WidgetId[]
   toggle: () => void
-  getTileClassName: (id: WidgetId) => string
-  bannerDismissed: boolean
-  dismissBanner: () => void
-  notifyManualCompactToggle: (willBeCompact: boolean) => void
+  getTileStatus: (id: WidgetId) => 'critical' | 'watch' | 'healthy'
+  showAdaptiveChrome: boolean
   adaptiveLayoutTransition: { duration: number; ease: number[] }
 }
 
@@ -65,11 +69,17 @@ function persistEnabled(on: boolean) {
   }
 }
 
+function statusFingerprint(
+  snapshots: { id: WidgetId; status: 'healthy' | 'watch' | 'critical' }[],
+): string {
+  return DEFAULT_WIDGET_ORDER.map((id) => snapshots.find((s) => s.id === id)?.status ?? 'healthy').join(
+    '|',
+  )
+}
+
 export function useAdaptiveMode({
   order,
   setOrder,
-  compactMode,
-  setCompactMode,
   hydrated,
   editMode,
   setEditMode,
@@ -87,13 +97,19 @@ export function useAdaptiveMode({
   const [enabled, setEnabled] = useState(false)
   const [engaged, setEngaged] = useState(false)
   const [restoring, setRestoring] = useState(false)
-  const [bannerDismissed, setBannerDismissed] = useState(false)
+  const [healthExitGateEpoch, setHealthExitGateEpoch] = useState(0)
+  const [isAnimating, setIsAnimating] = useState(false)
 
   const [gaugePulse, setGaugePulse] = useState(0)
   useEffect(() => {
-    const id = window.setInterval(() => setGaugePulse((p) => p + 1), 2000)
+    if (!enabled) return
+    const id = window.setInterval(() => setGaugePulse((p) => p + 1), ADAPTIVE_GAUGE_PULSE_MS)
     return () => window.clearInterval(id)
-  }, [])
+  }, [enabled])
+
+  useEffect(() => {
+    adaptiveMetricsFreezeRef.current = isAnimating
+  }, [isAnimating])
 
   useEffect(() => {
     const f = requestAnimationFrame(() => {
@@ -104,19 +120,22 @@ export function useAdaptiveMode({
   }, [])
 
   const prevSimulatingFailureRef = useRef(false)
+  const savedAdaptiveEnabledRef = useRef<boolean | null>(null)
 
-  /** Simulate failure → turn adaptive on automatically (same as toggling the button on). */
   useEffect(() => {
     if (!adaptiveHydrated || !hydrated) return
     const was = prevSimulatingFailureRef.current
     prevSimulatingFailureRef.current = isSimulatingFailure
     if (isSimulatingFailure && !was) {
+      savedAdaptiveEnabledRef.current = loadEnabled()
       queueMicrotask(() => {
         setEnabled(true)
         persistEnabled(true)
       })
     }
   }, [isSimulatingFailure, adaptiveHydrated, hydrated])
+
+  const hysteresisPrevRef = useRef<Partial<Record<WidgetId, 'healthy' | 'watch' | 'critical'>>>({})
 
   const snapshotCtx: MetricSnapshotCtx = useMemo(
     () => ({
@@ -131,9 +150,20 @@ export function useAdaptiveMode({
   )
 
   const snapshots = useMemo(
-    () => buildAllWidgetSnapshots(DEFAULT_WIDGET_ORDER, snapshotCtx),
+    () => buildAllWidgetSnapshots(DEFAULT_WIDGET_ORDER, snapshotCtx, hysteresisPrevRef.current),
     [snapshotCtx],
   )
+
+  useLayoutEffect(() => {
+    for (const s of snapshots) {
+      hysteresisPrevRef.current[s.id] = s.status
+    }
+  }, [snapshots])
+
+  const snapshotsRef = useRef(snapshots)
+  useLayoutEffect(() => {
+    snapshotsRef.current = snapshots
+  }, [snapshots])
 
   const sortedOrder = useMemo(() => getSortedTileOrder(snapshots), [snapshots])
   const issue = hasAnyIssue(snapshots)
@@ -144,27 +174,27 @@ export function useAdaptiveMode({
   const issueCount = issues.length
 
   const savedOrderRef = useRef<WidgetId[] | null>(null)
-  const preEngageCompactRef = useRef(false)
-  const adaptiveForcedCompactRef = useRef(false)
   const graceTimerRef = useRef<number | null>(null)
   const engagedRef = useRef(false)
   const restoringRef = useRef(false)
-  const userOverrodeCompactRef = useRef(false)
   const firedHealthBasedRestoreRef = useRef(false)
+  const healthExitAllowedAfterRef = useRef(0)
+  const lastSortFingerprintRef = useRef<string>('')
+  const resortDebounceTimerRef = useRef<number | null>(null)
+  /** Fingerprint we’re waiting on for debounced resort; only reset timer when this changes. */
+  const debounceTargetFpRef = useRef<string | null>(null)
 
   const orderRef = useRef(order)
   const sortedRef = useRef(sortedOrder)
-  const compactRef = useRef(compactMode)
   const editModeRef = useRef(editMode)
   const issueCountRef = useRef(issueCount)
 
   useLayoutEffect(() => {
     orderRef.current = order
     sortedRef.current = sortedOrder
-    compactRef.current = compactMode
     editModeRef.current = editMode
     issueCountRef.current = issueCount
-  }, [order, sortedOrder, compactMode, editMode, issueCount])
+  }, [order, sortedOrder, editMode, issueCount])
 
   const clearGrace = useCallback(() => {
     if (graceTimerRef.current != null) {
@@ -173,82 +203,97 @@ export function useAdaptiveMode({
     }
   }, [])
 
+  const clearResortDebounce = useCallback(() => {
+    if (resortDebounceTimerRef.current != null) {
+      clearTimeout(resortDebounceTimerRef.current)
+      resortDebounceTimerRef.current = null
+    }
+  }, [])
+
+  const applyResortedOrder = useCallback(
+    (next: WidgetId[]) => {
+      if (orderEquals(orderRef.current, next)) return
+      setIsAnimating(true)
+      setOrder(next, { persist: false })
+      window.setTimeout(() => setIsAnimating(false), RESORT_ANIM_MS)
+    },
+    [setOrder],
+  )
+
   const runRestore = useCallback(() => {
-      const saved = savedOrderRef.current
-      if (saved) {
-        setOrder([...saved])
-      }
-      if (adaptiveForcedCompactRef.current && !userOverrodeCompactRef.current) {
-        setCompactMode(preEngageCompactRef.current)
-      }
-      savedOrderRef.current = null
-      adaptiveForcedCompactRef.current = false
-      userOverrodeCompactRef.current = false
-      engagedRef.current = false
-      setEngaged(false)
-      setBannerDismissed(false)
-      pushToast('✓ Layout restored', 2000)
-  }, [setOrder, setCompactMode, pushToast])
+    const saved = savedOrderRef.current
+    if (saved) {
+      setOrder([...saved])
+    }
+    savedOrderRef.current = null
+    engagedRef.current = false
+    setEngaged(false)
+    const pref = savedAdaptiveEnabledRef.current
+    savedAdaptiveEnabledRef.current = null
+    if (pref !== null) {
+      queueMicrotask(() => {
+        setEnabled(pref)
+        persistEnabled(pref)
+      })
+    }
+    lastSortFingerprintRef.current = ''
+    clearResortDebounce()
+  }, [setOrder, clearResortDebounce])
 
   const beginRestoreSequence = useCallback(
-    (reason: 'grace' | 'health' = 'grace') => {
+    (_reason: 'grace' | 'health' = 'grace') => {
       clearGrace()
+      clearResortDebounce()
+      debounceTargetFpRef.current = null
       setRestoring(true)
       restoringRef.current = true
-      pushToast(
-        reason === 'health'
-          ? 'Health score ≥75 — restoring your layout'
-          : '✓ All systems recovered — restoring layout',
-        2800,
-      )
       window.setTimeout(() => {
         runRestore()
-      }, 300)
-      window.setTimeout(() => {
-        setRestoring(false)
-        restoringRef.current = false
-      }, 900)
+        pushToast('✓ Layout restored', 2000)
+        window.setTimeout(() => {
+          setRestoring(false)
+          restoringRef.current = false
+        }, RESTORE_LAYOUT_SETTLE_MS)
+      }, RESTORE_APPLY_ORDER_MS)
     },
-    [clearGrace, pushToast, runRestore],
+    [clearGrace, clearResortDebounce, pushToast, runRestore],
   )
 
   const enterEngage = useCallback(() => {
     if (engagedRef.current || restoringRef.current) return
     engagedRef.current = true
     firedHealthBasedRestoreRef.current = false
+    if (savedAdaptiveEnabledRef.current === null) {
+      savedAdaptiveEnabledRef.current = true
+    }
 
     const o = orderRef.current
     const so = sortedRef.current
-    const cm = compactRef.current
     const em = editModeRef.current
     const ic = issueCountRef.current
+    const snap = snapshotsRef.current
 
     savedOrderRef.current = [...o]
-    preEngageCompactRef.current = cm
-    userOverrodeCompactRef.current = false
-    if (!cm) {
-      setCompactMode(true)
-      adaptiveForcedCompactRef.current = true
-    } else {
-      adaptiveForcedCompactRef.current = false
-    }
     if (!orderEquals(o, so)) {
-      setOrder(so)
+      applyResortedOrder(so)
     }
+    lastSortFingerprintRef.current = statusFingerprint(snap)
+
     setEngaged(true)
-    setBannerDismissed(false)
     if (em) {
       setEditMode(false)
       pushToast('Customize mode exited — adaptive mode engaged', 3200)
     }
-    pushToast(`⚡ Adaptive mode engaged — ${ic} issue${ic === 1 ? '' : 's'} detected`, 3000)
-  }, [setCompactMode, setOrder, setEditMode, pushToast])
+    pushToast(`⚡ Adaptive mode engaged — ${ic} issue${ic === 1 ? '' : 's'} detected`, 2800)
+    healthExitAllowedAfterRef.current = Date.now() + HEALTH_EXIT_ENGAGE_GRACE_MS
+    window.setTimeout(() => setHealthExitGateEpoch((e) => e + 1), HEALTH_EXIT_ENGAGE_GRACE_MS)
+  }, [setEditMode, pushToast, applyResortedOrder])
 
-  /* Reactive engagement from live metrics — intentional batched layout updates */
-  /* eslint-disable react-hooks/set-state-in-effect -- adaptive war-room state machine */
+  /* eslint-disable react-hooks/set-state-in-effect -- adaptive state machine */
   useEffect(() => {
     if (!hydrated || !adaptiveHydrated || !enabled) {
       clearGrace()
+      clearResortDebounce()
       return
     }
     if (restoringRef.current) return
@@ -257,10 +302,12 @@ export function useAdaptiveMode({
       engagedRef.current &&
       healthHasData &&
       healthScore >= HEALTH_SCORE_EXIT_THRESHOLD &&
-      !firedHealthBasedRestoreRef.current
+      !firedHealthBasedRestoreRef.current &&
+      Date.now() >= healthExitAllowedAfterRef.current
     ) {
       firedHealthBasedRestoreRef.current = true
       clearGrace()
+      clearResortDebounce()
       beginRestoreSequence('health')
       return
     }
@@ -270,15 +317,29 @@ export function useAdaptiveMode({
       if (!engagedRef.current) {
         enterEngage()
       } else {
-        const cur = orderRef.current
-        const next = sortedRef.current
-        if (!orderEquals(cur, next)) {
-          setOrder(next)
+        const fp = statusFingerprint(snapshots)
+        if (fp === lastSortFingerprintRef.current) {
+          clearResortDebounce()
+          debounceTargetFpRef.current = null
+        } else if (debounceTargetFpRef.current !== fp) {
+          debounceTargetFpRef.current = fp
+          clearResortDebounce()
+          resortDebounceTimerRef.current = window.setTimeout(() => {
+            resortDebounceTimerRef.current = null
+            debounceTargetFpRef.current = null
+            const latest = snapshotsRef.current
+            const fpDone = statusFingerprint(latest)
+            if (fpDone === lastSortFingerprintRef.current) return
+            lastSortFingerprintRef.current = fpDone
+            applyResortedOrder(getSortedTileOrder(latest))
+          }, STATUS_RESORT_DEBOUNCE_MS)
         }
       }
       return
     }
 
+    clearResortDebounce()
+    debounceTargetFpRef.current = null
     if (engagedRef.current) {
       if (graceTimerRef.current == null) {
         graceTimerRef.current = window.setTimeout(() => {
@@ -295,12 +356,14 @@ export function useAdaptiveMode({
     snapshots,
     sortedOrder,
     order,
-    setOrder,
     enterEngage,
     clearGrace,
+    clearResortDebounce,
     beginRestoreSequence,
     healthScore,
     healthHasData,
+    healthExitGateEpoch,
+    applyResortedOrder,
   ])
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -314,43 +377,30 @@ export function useAdaptiveMode({
     setEnabled(false)
     persistEnabled(false)
     clearGrace()
+    clearResortDebounce()
+    savedAdaptiveEnabledRef.current = null
     if (engagedRef.current) {
       const saved = savedOrderRef.current
       if (saved) {
         setOrder([...saved])
       }
-      if (adaptiveForcedCompactRef.current && !userOverrodeCompactRef.current) {
-        setCompactMode(preEngageCompactRef.current)
-      }
       savedOrderRef.current = null
-      adaptiveForcedCompactRef.current = false
-      userOverrodeCompactRef.current = false
       engagedRef.current = false
       setEngaged(false)
     }
-    setBannerDismissed(false)
-  }, [enabled, setOrder, setCompactMode, clearGrace])
+    lastSortFingerprintRef.current = ''
+    debounceTargetFpRef.current = null
+  }, [enabled, setOrder, clearGrace, clearResortDebounce])
 
-  const getTileClassName = useCallback(
-    (id: WidgetId): string => {
-      if (!engaged || restoring) return ''
+  const getTileStatus = useCallback(
+    (id: WidgetId): 'critical' | 'watch' | 'healthy' => {
       const s = snapshots.find((x) => x.id === id)
-      if (!s || s.status === 'healthy') return 'adaptive-tile-healthy-dimmed'
-      if (s.status === 'critical') return 'adaptive-tile-critical'
-      return 'adaptive-tile-watch'
+      return s?.status ?? 'healthy'
     },
-    [engaged, restoring, snapshots],
+    [snapshots],
   )
 
-  const dismissBanner = useCallback(() => setBannerDismissed(true), [])
-
-  const notifyManualCompactToggle = useCallback((willBeCompact: boolean) => {
-    if (!engagedRef.current) return
-    userOverrodeCompactRef.current = true
-    if (!willBeCompact) {
-      adaptiveForcedCompactRef.current = false
-    }
-  }, [])
+  const showAdaptiveChrome = engaged && !restoring
 
   const phase: AdaptivePhase = !enabled
     ? 'disabled'
@@ -361,23 +411,27 @@ export function useAdaptiveMode({
         : 'watching'
 
   const layoutTransition = useMemo(() => {
-    if (restoring) return { duration: 0.6, ease: [0.16, 1, 0.3, 1] as number[] }
-    if (engaged && issue) return { duration: 0.4, ease: [0.4, 0, 0.2, 1] as number[] }
+    if (restoring) {
+      return { duration: RESTORE_LAYOUT_SETTLE_MS / 1000, ease: [0.16, 1, 0.3, 1] as number[] }
+    }
+    if (isAnimating || (engaged && issue)) {
+      return { duration: 0.6, ease: [0.25, 1, 0.5, 1] as number[] }
+    }
     return { duration: 0.5, ease: [0.4, 0, 0.2, 1] as number[] }
-  }, [restoring, engaged, issue])
+  }, [restoring, isAnimating, engaged, issue])
 
   return {
     isEnabled: adaptiveHydrated && enabled,
     isEngaged: engaged,
+    isAnimating,
     isRestoring: restoring,
     phase,
     issues,
     issueCount,
+    sortedTileOrder: order,
     toggle,
-    getTileClassName,
-    bannerDismissed,
-    dismissBanner,
-    notifyManualCompactToggle,
+    getTileStatus,
+    showAdaptiveChrome,
     adaptiveLayoutTransition: layoutTransition,
   }
 }

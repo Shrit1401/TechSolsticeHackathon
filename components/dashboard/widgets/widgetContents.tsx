@@ -339,22 +339,30 @@ function ThroughputBody() {
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex shrink-0 flex-wrap gap-1">
         {(["5m", "1h", "24h"] as const).map((r) => (
-          <button
+          <span
             key={r}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation();
               setRange(r);
             }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                setRange(r);
+              }
+            }}
             className={cn(
-              "rounded-full px-2.5 py-1 text-[11px] font-medium",
+              "cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-medium",
               range === r
                 ? "bg-white/10 text-white"
                 : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
             )}
           >
             {r}
-          </button>
+          </span>
         ))}
       </div>
       <DeltaIndicator

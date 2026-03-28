@@ -3,3 +3,7 @@
 __pycache__/
 *.py[cod]
 *.pem
+
+data/ml/sequences/*.npz
+data/ml/sequences/*_scaler.joblib
+data/ml/models/*.h5

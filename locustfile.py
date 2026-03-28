@@ -8,6 +8,7 @@ from locust import HttpUser, between, task
 
 
 class UserBehavior(HttpUser):
+    # wait time between tasks
     wait_time = between(0.3, 1.5)
     host = "http://127.0.0.1:8000"
 

@@ -27,18 +27,49 @@ services:
     ports:
       - "9090:9090"
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+
   detector-service:
-    build: ./detector-service
+    build:
+      context: .
+      dockerfile: detector-service/Dockerfile
     ports:
       - "8003:8003"
     environment:
       PROMETHEUS_URL: http://prometheus:9090
       GATEWAY_METRICS_URL: http://api-gateway:8000
+      LOKI_URL: http://loki:3100
+      JAEGER_TRACES_URL: http://jaeger:16686/api/traces
+      ENABLE_ML_ANOMALY: "1"
+      ENABLE_LOG_ANOMALY: "1"
+      ENABLE_TRACE_ANOMALY: "1"
+      TRACE_ANALYSIS_INTERVAL_S: "30"
+      LOG_ANALYSIS_INTERVAL_S: "30"
+      LOG_FUSION_LOKI_QUERY: '{job="docker"}'
+      LOG_FUSION_LIMIT: "200"
+      LOG_FUSION_MINUTES: "15"
+      LOG_FUSION_Z: "2.0"
+      FUSION_W_METRIC: "0.4"
+      FUSION_W_LOG: "0.35"
+      FUSION_W_TRACE: "0.25"
+      LOG_DISTANCE_TAU: "3.0"
+      REALTIME_ML_INTERVAL_S: "30"
+      ML_MODEL_PATH: /data/ml/models/lstm_model.h5
+      ML_AE_MODEL_PATH: /data/ml/models/ae_model.h5
+      ML_SCALER_PATH: /data/ml/sequences/sequences_scaler.joblib
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/ml:/data/ml:ro
     depends_on:
       - prometheus
       - api-gateway
+      - loki
+      - jaeger
 
   grafana:
     image: grafana/grafana

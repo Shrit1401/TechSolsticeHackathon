@@ -27,6 +27,7 @@ PAYMENT_SERVICE = "http://payment-service:8002"
 _UPSTREAM_TIMEOUT = httpx.Timeout(10.0)
 
 
+# we're using a simple proxy to forward the request to the services
 async def _proxy(method: str, url: str) -> Response:
     start = time.time()
     REQUEST_COUNT.inc()

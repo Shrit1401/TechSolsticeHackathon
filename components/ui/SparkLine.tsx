@@ -1,20 +1,20 @@
-'use client'
+"use client";
 
-import { useId } from 'react'
-import { Area, AreaChart, ResponsiveContainer } from 'recharts'
-import type { MetricPoint } from '@/lib/types'
+import { useId } from "react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import type { MetricPoint } from "@/lib/types";
 
 export function SparkLine({
   data,
-  color = 'var(--accent-cyan)',
+  color = "var(--accent-cyan)",
 }: {
-  data: MetricPoint[]
-  color?: string
+  data: MetricPoint[];
+  color?: string;
 }) {
-  const uid = useId().replace(/:/g, '')
-  const gradId = `spark-${uid}`
-  const chartData = data.map(d => ({ v: d.value }))
-  if (chartData.length === 0) return null
+  const uid = useId().replace(/:/g, "");
+  const gradId = `spark-${uid}`;
+  const chartData = data.map((d) => ({ v: d.value }));
+  if (chartData.length === 0) return null;
   return (
     <div className="h-[52px] w-full min-w-0 opacity-90">
       <ResponsiveContainer width="100%" height="100%">
@@ -37,5 +37,5 @@ export function SparkLine({
         </AreaChart>
       </ResponsiveContainer>
     </div>
-  )
+  );
 }

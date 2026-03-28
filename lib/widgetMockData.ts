@@ -4,6 +4,12 @@ import type { MetricPoint } from '@/lib/types'
 export type ExpandedTimeRange = '5m' | '15m' | '1h' | '6h' | '24h' | '7d'
 
 /** Mulberry32 PRNG */
+/** ±7.5% style delta vs current for mock baselines */
+export function syntheticPreviousValue(current: number, seed: number): number {
+  const r = mulberry32(seed)()
+  return current + (r - 0.5) * Math.max(Math.abs(current), 1e-6) * 0.15
+}
+
 export function mulberry32(seed: number) {
   return function () {
     let t = (seed += 0x6d2b79f5)

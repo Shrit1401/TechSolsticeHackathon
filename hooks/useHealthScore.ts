@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeHealthScore, scoreToColorHex, type HealthLabel, type HealthScoreResult } from '@/lib/healthScore'
 import { useDashboardStore } from '@/store/dashboardStore'
 import { anomalyScoreFromStore, gaugeValue } from '@/lib/widgetMockData'
@@ -14,6 +14,20 @@ export type ScoreHistoryPoint = {
   timestamp: number
   breakdown: HealthScoreResult['breakdown']
 }
+
+export type HealthScoreContextValue = {
+  score: number
+  breakdown: HealthScoreResult['breakdown']
+  label: HealthLabel
+  color: string
+  trend: { delta: number; direction: 'up' | 'down' | 'stable' }
+  history: ScoreHistoryPoint[]
+  lastUpdated: number | null
+  stale: boolean
+  hasData: boolean
+}
+
+const HealthScoreContext = createContext<HealthScoreContextValue | null>(null)
 
 function mean(values: number[]): number {
   if (!values.length) return 0
@@ -50,7 +64,7 @@ function latestMetricTimestamp(metrics: { requestRate: { timestamp: number }[]; 
   return m
 }
 
-export function useHealthScore() {
+function useHealthScoreState(): HealthScoreContextValue {
   const metrics = useDashboardStore(s => s.metrics)
   const anomalies = useDashboardStore(s => s.anomalies)
   const isSimulatingFailure = useDashboardStore(s => s.isSimulatingFailure)
@@ -104,14 +118,14 @@ export function useHealthScore() {
 
   useEffect(() => {
     const update = () => setStale(lastUpdated != null && Date.now() - lastUpdated > STALE_MS)
-    let intervalId: ReturnType<typeof setInterval>
+    let intervalId: ReturnType<typeof globalThis.setInterval> | undefined
     const frameId = requestAnimationFrame(() => {
       update()
-      intervalId = window.setInterval(update, 3000)
+      intervalId = globalThis.setInterval(update, 3000)
     })
     return () => {
       cancelAnimationFrame(frameId)
-      if (intervalId != null) window.clearInterval(intervalId)
+      if (intervalId != null) globalThis.clearInterval(intervalId)
     }
   }, [lastUpdated])
 
@@ -190,4 +204,17 @@ export function useHealthScore() {
     stale,
     hasData,
   }
+}
+
+export function HealthScoreProvider({ children }: { children: ReactNode }) {
+  const value = useHealthScoreState()
+  return createElement(HealthScoreContext.Provider, { value }, children)
+}
+
+export function useHealthScore(): HealthScoreContextValue {
+  const ctx = useContext(HealthScoreContext)
+  if (ctx == null) {
+    throw new Error('useHealthScore must be used within HealthScoreProvider')
+  }
+  return ctx
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Michroma, Oxanium } from "next/font/google";
 import "./globals.css";
+import "./adaptive.css";
 
 const heroDisplay = Michroma({
   subsets: ["latin"],

@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
 import { HEALTH_WEIGHTS, scoreToColorHex } from '@/lib/healthScore'
 import { cn } from '@/lib/utils'
 
@@ -14,14 +13,14 @@ const ROWS: { key: keyof typeof HEALTH_WEIGHTS; label: string }[] = [
   { key: 'anomaly', label: 'Anomaly' },
 ]
 
-type Breakdown = Record<(typeof ROWS)[number]['key'], number>
+export type HealthBreakdown = Record<(typeof ROWS)[number]['key'], number>
 
-export function HealthScoreTooltip({
+export function HealthScoreBreakdownCard({
   breakdown,
   lastUpdated,
   className,
 }: {
-  breakdown: Breakdown
+  breakdown: HealthBreakdown
   lastUpdated: number | null
   className?: string
 }) {
@@ -31,28 +30,24 @@ export function HealthScoreTooltip({
       const id = requestAnimationFrame(() => setSecondsAgo(null))
       return () => cancelAnimationFrame(id)
     }
-    let intervalId: ReturnType<typeof setInterval>
+    let intervalId: ReturnType<typeof globalThis.setInterval> | undefined
     const frameId = requestAnimationFrame(() => {
       setSecondsAgo(Math.max(1, Math.round((Date.now() - lastUpdated) / 1000)))
-      intervalId = window.setInterval(() => {
+      intervalId = globalThis.setInterval(() => {
         setSecondsAgo(Math.max(1, Math.round((Date.now() - lastUpdated) / 1000)))
       }, 1000)
     })
     return () => {
       cancelAnimationFrame(frameId)
-      if (intervalId != null) window.clearInterval(intervalId)
+      if (intervalId != null) globalThis.clearInterval(intervalId)
     }
   }, [lastUpdated])
   const ago = lastUpdated == null ? '—' : secondsAgo == null ? '…' : `${secondsAgo}s ago`
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.2 }}
+    <div
       className={cn(
-        'pointer-events-none absolute left-1/2 top-full z-30 mt-4 w-[min(100vw-2rem,320px)] -translate-x-1/2 rounded-2xl border border-white/10 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]',
+        'rounded-2xl border border-white/10 p-5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]',
         'bg-[rgba(17,24,32,0.95)] backdrop-blur-[16px]',
         className
       )}
@@ -78,6 +73,6 @@ export function HealthScoreTooltip({
         })}
       </ul>
       <p className="mt-4 text-[11px] text-white/40">Right column: blend weight · Updated {ago}</p>
-    </motion.div>
+    </div>
   )
 }

@@ -163,6 +163,39 @@
     scroll-behavior: smooth;
   }
 
+  /* Custom scrollbar — dark theme (global) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    transition: background 0.2s ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Clash Display', sans-serif;
     font-weight: 600;
@@ -304,21 +337,37 @@
   }
 }
 
-@keyframes health-ring-pulse {
+/* Metric card status dot pulse */
+@keyframes status-dot-pulse {
   0%,
   100% {
-    filter: drop-shadow(0 0 6px rgba(255, 23, 68, 0.2));
+    opacity: 0.6;
+    transform: scale(1);
   }
   50% {
-    filter: drop-shadow(0 0 22px rgba(255, 23, 68, 0.45));
+    opacity: 0;
+    transform: scale(1.8);
   }
 }
 
-@keyframes health-score-flash {
-  0% {
-    box-shadow: 0 0 40px rgba(255, 23, 68, 0.55);
-  }
-  100% {
-    box-shadow: 0 0 0 rgba(255, 23, 68, 0);
-  }
+.status-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.status-badge-dot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  animation: status-dot-pulse 2.5s ease-in-out infinite;
+}
+
+.status-badge-dot--urgent::after {
+  animation-duration: 1.5s;
 }

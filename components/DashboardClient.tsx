@@ -1,39 +1,98 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { LayoutGroup } from 'framer-motion'
+import { LayoutGrid, LayoutPanelTop } from 'lucide-react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { StatusBar } from '@/components/dashboard/StatusBar'
 import { MetricsGrid } from '@/components/dashboard/MetricsGrid'
-import { HealthScoreWidget } from '@/components/dashboard/health-score/HealthScoreWidget'
+import { AdaptiveModeButton } from '@/components/dashboard/AdaptiveModeButton'
+import { HealthScoreProvider } from '@/hooks/useHealthScore'
 import { ExpandedModal } from '@/components/dashboard/expanded/ExpandedModal'
 import { Toast } from '@/components/ui/Toast'
 import type { WidgetId } from '@/lib/constants'
 import { useDashboardStore } from '@/store/dashboardStore'
+import { cn } from '@/lib/utils'
+import { useGridLayout } from '@/hooks/useGridLayout'
+import { useAdaptiveMode } from '@/hooks/useAdaptiveMode'
+
+function LocalTimeClock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(new Date()), 1000)
+    return () => window.clearInterval(id)
+  }, [])
+  const formatted = now.toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+  return (
+    <div className="flex flex-col items-end gap-2 text-right">
+      <span className="text-[11px] font-normal uppercase tracking-[0.06em] text-[var(--text-tertiary)] [font-family:var(--font-hero-display)] sm:text-xs">
+        Local time
+      </span>
+      <time
+        dateTime={now.toISOString()}
+        className="font-mono text-4xl font-semibold tabular-nums tracking-tight text-[var(--text-primary)] [font-family:var(--font-ui)] sm:text-5xl md:text-6xl lg:text-7xl"
+      >
+        {formatted}
+      </time>
+    </div>
+  )
+}
 
 const COMPACT_MODE_KEY = 'aiops-compact-mode'
 
 export default function DashboardClient() {
+  return (
+    <HealthScoreProvider>
+      <DashboardClientInner />
+    </HealthScoreProvider>
+  )
+}
+
+function DashboardClientInner() {
   const { simulateFailure, toggleAutoRemediation } = useSimulation()
   const { connected, lastEvent } = useWebSocket()
   const systemStatus = useDashboardStore(s => s.systemStatus)
 
+  const { order, setOrder, sizes, toggleSize, hydrated: gridHydrated } = useGridLayout()
+
   const [editMode, setEditMode] = useState(false)
   const [expandedId, setExpandedId] = useState<WidgetId | null>(null)
   const [toastOpen, setToastOpen] = useState(false)
+  const [toastMessage, setToastMessage] = useState('')
+  const toastTimerRef = useRef<number | null>(null)
   const [compactMode, setCompactMode] = useState(false)
   const [compactHydrated, setCompactHydrated] = useState(false)
 
-  useEffect(() => {
-    try {
-      if (typeof localStorage !== 'undefined' && localStorage.getItem(COMPACT_MODE_KEY) === '1') {
-        setCompactMode(true)
-      }
-    } catch {
-      /* ignore */
+  const pushToast = useCallback((message: string, ms = 2800) => {
+    if (toastTimerRef.current != null) {
+      clearTimeout(toastTimerRef.current)
+      toastTimerRef.current = null
     }
-    setCompactHydrated(true)
+    setToastMessage(message)
+    setToastOpen(true)
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastOpen(false)
+      toastTimerRef.current = null
+    }, ms)
+  }, [])
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      try {
+        if (typeof localStorage !== 'undefined' && localStorage.getItem(COMPACT_MODE_KEY) === '1') {
+          setCompactMode(true)
+        }
+      } catch {
+        /* ignore */
+      }
+      setCompactHydrated(true)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [])
 
   useEffect(() => {
@@ -45,14 +104,24 @@ export default function DashboardClient() {
     }
   }, [compactMode, compactHydrated])
 
+  const adaptive = useAdaptiveMode({
+    order,
+    setOrder,
+    compactMode,
+    setCompactMode,
+    hydrated: gridHydrated && compactHydrated,
+    editMode,
+    setEditMode,
+    pushToast,
+  })
+
   const statusLabel =
     systemStatus === 'healthy' ? 'System healthy' : systemStatus === 'anomaly' ? 'Attention needed' : 'Recovering'
 
   const exitCustomizeMode = useCallback(() => {
     setEditMode(false)
-    setToastOpen(true)
-    window.setTimeout(() => setToastOpen(false), 2000)
-  }, [])
+    pushToast('Layout saved', 2000)
+  }, [pushToast])
 
   return (
     <>
@@ -79,37 +148,102 @@ export default function DashboardClient() {
               : 'mx-auto w-full max-w-[1440px] flex-1 px-5 pb-20 pt-6 md:px-6 md:pt-10'
           }
         >
-          <header className="mb-6 max-w-5xl md:mb-8">
-            <h1 className="text-4xl font-normal leading-[1.08] tracking-[0.06em] text-white [font-family:var(--font-hero-display)] sm:text-5xl md:text-6xl">
-              Distributed system observability
-            </h1>
-            <p className="mt-4 max-w-xl text-[0.875rem] leading-[1.6] text-[#9ca3af]">
-              Digital twin monitoring, anomaly detection, and auto-remediation.
-            </p>
-            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[var(--bg-card)]/80 px-3 py-1.5 [font-family:var(--font-ui)]">
-              <span
-                className={
-                  systemStatus === 'healthy'
-                    ? 'h-2 w-2 rounded-full bg-[var(--accent-green)] shadow-[0_0_10px_rgba(0,200,83,0.5)]'
-                    : systemStatus === 'anomaly'
-                      ? 'h-2 w-2 rounded-full bg-[var(--accent-red)]'
-                      : 'h-2 w-2 rounded-full bg-[var(--accent-amber)]'
-                }
-              />
-              <span className="text-[12px] font-medium text-[var(--text-secondary)]">{statusLabel}</span>
+          <header className="mb-6 md:mb-8">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
+              <div className="min-w-0 max-w-5xl">
+                <h1 className="text-4xl font-normal leading-[1.08] tracking-[0.06em] text-white [font-family:var(--font-hero-display)] sm:text-5xl md:text-6xl">
+                  Distributed system observability
+                </h1>
+                <p className="mt-4 max-w-xl text-[0.875rem] leading-[1.6] text-[#9ca3af]">
+                  Digital twin monitoring, anomaly detection, and auto-remediation.
+                </p>
+                <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-[var(--bg-card)]/80 px-3 py-1.5 [font-family:var(--font-ui)]">
+                  <span
+                    className={
+                      systemStatus === 'healthy'
+                        ? 'h-2 w-2 rounded-full bg-[var(--accent-green)] shadow-[0_0_10px_rgba(0,200,83,0.5)]'
+                        : systemStatus === 'anomaly'
+                          ? 'h-2 w-2 rounded-full bg-[var(--accent-red)]'
+                          : 'h-2 w-2 rounded-full bg-[var(--accent-amber)]'
+                    }
+                  />
+                  <span className="text-[12px] font-medium text-[var(--text-secondary)]">{statusLabel}</span>
+                </div>
+              </div>
+
+              <div className="flex w-full shrink-0 flex-col items-end lg:w-auto">
+                <LocalTimeClock />
+                <div className="mt-8 flex w-[min(100%,280px)] flex-col gap-2">
+                  <AdaptiveModeButton
+                    phase={adaptive.phase}
+                    issueCount={adaptive.issueCount}
+                    onClick={adaptive.toggle}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !compactMode
+                      if (adaptive.isEngaged) {
+                        adaptive.notifyManualCompactToggle(next)
+                      }
+                      setCompactMode(next)
+                    }}
+                    className={cn(
+                      'inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-full border px-5 py-3 text-[0.9375rem] font-medium shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-colors [font-family:var(--font-ui)]',
+                      compactMode
+                        ? 'border-white/[0.22] bg-white/[0.08] text-white hover:border-white/[0.28] hover:bg-white/[0.12]'
+                        : 'border-white/[0.1] bg-black text-[#e5e7eb] hover:border-white/[0.18] hover:bg-black',
+                    )}
+                    aria-pressed={compactMode}
+                  >
+                    <LayoutPanelTop className="size-[1.125rem] opacity-90" strokeWidth={1.75} aria-hidden />
+                    Compact mode
+                  </button>
+                  <button
+                    type="button"
+                    disabled={adaptive.isEngaged}
+                    onClick={() => {
+                      if (adaptive.isEngaged) {
+                        pushToast('Disable adaptive mode to customize layout', 3200)
+                        return
+                      }
+                      if (editMode) {
+                        exitCustomizeMode()
+                      } else {
+                        setEditMode(true)
+                      }
+                    }}
+                    className={cn(
+                      'inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-full border border-white/[0.1] bg-black px-5 py-3 text-[0.9375rem] font-medium text-[#e5e7eb] shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-colors hover:border-white/[0.18] hover:bg-black [font-family:var(--font-ui)]',
+                      adaptive.isEngaged && 'cursor-not-allowed opacity-45 hover:border-white/[0.1] hover:bg-black',
+                    )}
+                  >
+                    <LayoutGrid className="size-[1.125rem] opacity-90" strokeWidth={1.75} aria-hidden />
+                    {editMode ? 'Done' : 'Customize'}
+                  </button>
+                </div>
+              </div>
             </div>
           </header>
 
           <LayoutGroup id="dashboard-widgets">
-            <HealthScoreWidget />
             <MetricsGrid
+              order={order}
+              setOrder={setOrder}
+              sizes={sizes}
+              toggleSize={toggleSize}
+              hydrated={gridHydrated}
               editMode={editMode}
               expandedId={expandedId}
               compactMode={compactMode}
-              onCompactModeChange={setCompactMode}
               onExpandedChange={setExpandedId}
-              onCustomize={() => setEditMode(true)}
-              onDone={exitCustomizeMode}
+              adaptiveEngaged={adaptive.isEngaged}
+              adaptiveRestoring={adaptive.isRestoring}
+              getAdaptiveTileClassName={adaptive.getTileClassName}
+              adaptiveLayoutTransition={adaptive.adaptiveLayoutTransition}
+              issues={adaptive.issues}
+              bannerDismissed={adaptive.bannerDismissed}
+              onDismissBanner={adaptive.dismissBanner}
             />
             <ExpandedModal
               widgetId={expandedId}
@@ -126,7 +260,7 @@ export default function DashboardClient() {
           </footer>
         </main>
 
-        <Toast open={toastOpen} message="Layout saved" />
+        <Toast open={toastOpen} message={toastMessage} />
       </div>
     </>
   )

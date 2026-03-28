@@ -34,7 +34,7 @@ function ChartTooltip({
   const row = payload[0]?.payload;
   if (!row) return null;
   return (
-    <div className="rounded-xl border border-white/[0.1] bg-black px-3.5 py-2.5 shadow-xl">
+    <div className="rounded-xl border border-white/[0.12] bg-black/95 px-3.5 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.65)] backdrop-blur-sm">
       <p className="font-numeric-dial text-[11px] text-white/40">
         {typeof label === "number" ? new Date(label).toLocaleString() : "—"}
       </p>
@@ -94,10 +94,10 @@ export function GraphMainChart({
         <ComposedChart
           data={data}
           margin={{
-            top: 12,
-            right: isFocus ? 18 : 10,
-            bottom: 4,
-            left: isFocus ? 10 : 6,
+            top: 14,
+            right: isFocus ? 18 : 12,
+            bottom: 6,
+            left: isFocus ? 10 : 8,
           }}
         >
           <defs>
@@ -122,8 +122,8 @@ export function GraphMainChart({
           </defs>
 
           <CartesianGrid
-            stroke="rgba(255,255,255,0.045)"
-            strokeDasharray="3 10"
+            stroke="rgba(255,255,255,0.055)"
+            strokeDasharray="4 12"
             vertical={false}
           />
 

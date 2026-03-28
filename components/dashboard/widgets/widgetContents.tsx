@@ -1,10 +1,13 @@
 "use client";
 
-import { Fragment, memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
   CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -17,29 +20,35 @@ import { CountUp } from "@/components/ui/CountUp";
 import { SparkLine } from "@/components/ui/SparkLine";
 import { RadialGauge } from "@/components/ui/RadialGauge";
 import { DeltaIndicator } from "@/components/ui/DeltaIndicator";
-import {
-  anomalyScoreFromStore,
-  deriveSparkSeries,
-  gaugeValue,
-  generateStackedConnections,
-  memoryGb,
-  syntheticPreviousValue,
-} from "@/lib/widgetMockData";
+import { syntheticPreviousValue, memoryGb } from "@/lib/widgetMockData";
 import type { WidgetId, WidgetSize } from "@/lib/constants";
 import { useWidgetSize } from "@/components/dashboard/WidgetSizeContext";
 import { useId } from "react";
 import { cn } from "@/lib/utils";
+import type { MetricPoint } from "@/lib/types";
+
+/** Stable empty array — never recreated, safe to use as Zustand selector fallback. */
+const EMPTY: MetricPoint[] = [];
 
 function chartHeightForTile(size: WidgetSize): number {
-  if (size === "2x2") return 316;
-  if (size === "3x1") return 148;
-  return 120;
+  if (size === "2x2") return 340;
+  if (size === "3x1") return 168;
+  return 140;
 }
 
-function windowDelta(series: { value: number }[]) {
+function windowDelta(series: MetricPoint[]) {
   const cur = series[series.length - 1]?.value ?? 0;
   const prev = series[0]?.value ?? cur;
   return { current: cur, previous: prev };
+}
+
+function NoData({ label }: { label: string }) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
+      <p className="text-[13px] text-[var(--text-tertiary)]">No data</p>
+      <p className="text-[11px] text-[var(--text-tertiary)]/60">{label}</p>
+    </div>
+  );
 }
 
 export function widgetMeta(id: WidgetId): { title: string; subtitle?: string } {
@@ -53,8 +62,8 @@ export function widgetMeta(id: WidgetId): { title: string; subtitle?: string } {
     },
     cpu: { title: "CPU saturation", subtitle: "Cluster average" },
     memory: { title: "Memory utilization", subtitle: "Heap + page cache" },
-    connections: { title: "Active connections", subtitle: "By protocol" },
-    anomaly: { title: "Anomaly score", subtitle: "ML composite 0–1" },
+    connections: { title: "Active connections", subtitle: "TCP established" },
+    anomaly: { title: "Anomaly score", subtitle: "Detector confidence 0–1" },
     "service-map": {
       title: "Service dependency map",
       subtitle: "Topology (simplified)",
@@ -96,10 +105,8 @@ export const WidgetBody = memo(function WidgetBody({ id }: { id: WidgetId }) {
       return <IncidentTimelineBody />;
     case "queue-depth":
       return (
-        <DerivedSparkBody
-          seed={101}
-          base={48}
-          amplitude={18}
+        <ExtendedMetricBody
+          widgetId="queue-depth"
           unit="msgs"
           color="var(--accent-cyan)"
           invertDelta
@@ -107,32 +114,26 @@ export const WidgetBody = memo(function WidgetBody({ id }: { id: WidgetId }) {
       );
     case "saturation":
       return (
-        <DerivedSparkBody
-          seed={102}
-          base={62}
-          amplitude={8}
+        <ExtendedMetricBody
+          widgetId="saturation"
           unit="%"
           color="var(--accent-cyan)"
-          clampMax={100}
           invertDelta
+          clampMax={100}
         />
       );
     case "disk-io":
       return (
-        <DerivedSparkBody
-          seed={103}
-          base={320}
-          amplitude={45}
+        <ExtendedMetricBody
+          widgetId="disk-io"
           unit="MB/s"
           color="var(--accent-cyan)"
         />
       );
     case "network-in":
       return (
-        <DerivedSparkBody
-          seed={104}
-          base={840}
-          amplitude={120}
+        <ExtendedMetricBody
+          widgetId="network-in"
           unit="Mbps"
           color="var(--accent-blue)"
           textClass="text-[var(--text-primary)]"
@@ -140,12 +141,10 @@ export const WidgetBody = memo(function WidgetBody({ id }: { id: WidgetId }) {
       );
     case "gc-pause":
       return (
-        <DerivedSparkBody
-          seed={105}
-          base={2.4}
-          amplitude={0.85}
-          decimals={2}
+        <ExtendedMetricBody
+          widgetId="gc-pause"
           unit="ms"
+          decimals={2}
           color="var(--accent-blue)"
           textClass="text-[var(--text-primary)]"
           invertDelta
@@ -153,36 +152,29 @@ export const WidgetBody = memo(function WidgetBody({ id }: { id: WidgetId }) {
       );
     case "cache-hit":
       return (
-        <DerivedSparkBody
-          seed={106}
-          base={94}
-          amplitude={2}
-          decimals={1}
+        <ExtendedMetricBody
+          widgetId="cache-hit"
           unit="%"
+          decimals={1}
           color="var(--accent-cyan)"
-          clampMin={88}
           clampMax={100}
         />
       );
     case "thread-pool":
       return (
-        <DerivedSparkBody
-          seed={107}
-          base={71}
-          amplitude={9}
+        <ExtendedMetricBody
+          widgetId="thread-pool"
           unit="%"
           color="var(--accent-blue)"
           textClass="text-[var(--text-primary)]"
-          clampMax={100}
           invertDelta
+          clampMax={100}
         />
       );
     case "db-connections":
       return (
-        <DerivedSparkBody
-          seed={108}
-          base={128}
-          amplitude={22}
+        <ExtendedMetricBody
+          widgetId="db-connections"
           unit="conns"
           color="var(--accent-cyan)"
           invertDelta
@@ -193,24 +185,20 @@ export const WidgetBody = memo(function WidgetBody({ id }: { id: WidgetId }) {
   }
 });
 
+// ── Core metric widgets ────────────────────────────────────────────────────
+
 function RequestRateBody() {
-  const series = useDashboardStore((s) => s.metrics.requestRate);
+  const series = useDashboardStore(s => s.metrics.requestRate);
   const { current, previous } = windowDelta(series);
+  if (series.length === 0) return <NoData label="awaiting Prometheus data" />;
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-between gap-2">
       <div>
         <p className="font-numeric-dial text-4xl text-[var(--accent-cyan)]">
           <CountUp value={current} />{" "}
-          <span className="text-lg font-medium text-[var(--text-tertiary)]">
-            req/s
-          </span>
+          <span className="text-lg font-medium text-[var(--text-tertiary)]">req/s</span>
         </p>
-        <DeltaIndicator
-          current={current}
-          previous={previous}
-          unit="req/s"
-          invertColors={false}
-        />
+        <DeltaIndicator current={current} previous={previous} unit="req/s" invertColors={false} />
       </div>
       <SparkLine data={series} />
     </div>
@@ -218,21 +206,16 @@ function RequestRateBody() {
 }
 
 function ErrorRateBody() {
-  const series = useDashboardStore((s) => s.metrics.errorRate);
+  const series = useDashboardStore(s => s.metrics.errorRate);
   const { current, previous } = windowDelta(series);
+  if (series.length === 0) return <NoData label="awaiting Prometheus data" />;
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-between gap-2">
       <div>
         <p className="font-numeric-dial text-4xl text-[var(--accent-cyan)]">
           <CountUp value={current} decimals={1} />%
         </p>
-        <DeltaIndicator
-          current={current}
-          previous={previous}
-          unit="%"
-          invertColors
-          decimals={1}
-        />
+        <DeltaIndicator current={current} previous={previous} unit="%" invertColors decimals={1} />
       </div>
       <SparkLine data={series} color="var(--chart-line-secondary)" />
     </div>
@@ -240,80 +223,19 @@ function ErrorRateBody() {
 }
 
 function LatencyBody() {
-  const series = useDashboardStore((s) => s.metrics.latency);
+  const series = useDashboardStore(s => s.metrics.latency);
   const { current, previous } = windowDelta(series);
+  if (series.length === 0) return <NoData label="awaiting Prometheus data" />;
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-between gap-2">
       <div>
         <p className="font-numeric-dial text-4xl text-[var(--text-primary)]">
           <CountUp value={current} />{" "}
-          <span className="text-lg font-medium text-[var(--text-tertiary)]">
-            ms
-          </span>
+          <span className="text-lg font-medium text-[var(--text-tertiary)]">ms</span>
         </p>
-        <DeltaIndicator
-          current={current}
-          previous={previous}
-          unit="ms"
-          invertColors
-        />
+        <DeltaIndicator current={current} previous={previous} unit="ms" invertColors />
       </div>
       <SparkLine data={series} color="var(--accent-blue)" />
-    </div>
-  );
-}
-
-function DerivedSparkBody({
-  seed,
-  base,
-  amplitude,
-  decimals = 0,
-  unit,
-  color,
-  textClass = "text-[var(--accent-cyan)]",
-  clampMin,
-  clampMax,
-  invertDelta = false,
-}: {
-  seed: number;
-  base: number;
-  amplitude: number;
-  decimals?: number;
-  unit: string;
-  color: string;
-  textClass?: string;
-  clampMin?: number;
-  clampMax?: number;
-  invertDelta?: boolean;
-}) {
-  const template = useDashboardStore((s) => s.metrics.requestRate);
-  const series = useMemo(
-    () =>
-      deriveSparkSeries(template, seed, base, amplitude, {
-        min: clampMin,
-        max: clampMax,
-      }),
-    [template, seed, base, amplitude, clampMin, clampMax],
-  );
-  const { current, previous } = windowDelta(series);
-  return (
-    <div className="flex min-h-0 flex-1 flex-col justify-between gap-2">
-      <div>
-        <p className={cn("font-numeric-dial text-4xl", textClass)}>
-          <CountUp value={current} decimals={decimals} />{" "}
-          <span className="text-lg font-medium text-[var(--text-tertiary)]">
-            {unit}
-          </span>
-        </p>
-        <DeltaIndicator
-          current={current}
-          previous={previous}
-          unit={unit}
-          invertColors={invertDelta}
-          decimals={decimals}
-        />
-      </div>
-      <SparkLine data={series} color={color} />
     </div>
   );
 }
@@ -321,178 +243,115 @@ function DerivedSparkBody({
 function ThroughputBody() {
   const tileSize = useWidgetSize();
   const [range, setRange] = useState<TimeRange>("5m");
-  const rr = useDashboardStore((s) => s.metrics.requestRate);
-  const er = useDashboardStore((s) => s.metrics.errorRate);
-  const lat = useDashboardStore((s) => s.metrics.latency);
+  const rr = useDashboardStore(s => s.metrics.requestRate);
+  const er = useDashboardStore(s => s.metrics.errorRate);
+  const lat = useDashboardStore(s => s.metrics.latency);
   const merged = useMemo(() => mergeMetrics(rr, er, lat), [rr, er, lat]);
   const data = useMemo(() => sliceByRange(merged, range), [merged, range]);
   const uid = useId().replace(/:/g, "");
   const chartH = chartHeightForTile(tileSize);
   const erDelta = useMemo(() => {
     if (data.length === 0) return { current: 0, previous: 0 };
-    const cur = data[data.length - 1]!.er;
-    const prev = data[0]!.er;
-    return { current: cur, previous: prev };
+    return { current: data[data.length - 1]!.er, previous: data[0]!.er };
   }, [data]);
+
+  if (rr.length === 0) return <NoData label="awaiting Prometheus data" />;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
       <div className="flex shrink-0 flex-wrap gap-1">
-        {(["5m", "1h", "24h"] as const).map((r) => (
+        {(["5m", "1h", "24h"] as const).map(r => (
           <span
             key={r}
             role="button"
             tabIndex={0}
-            onClick={(e) => {
-              e.stopPropagation();
-              setRange(r);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                e.stopPropagation();
-                setRange(r);
-              }
+            onClick={e => { e.stopPropagation(); setRange(r); }}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setRange(r); }
             }}
             className={cn(
               "cursor-pointer rounded-full px-2.5 py-1 text-[11px] font-medium",
-              range === r
-                ? "bg-white/10 text-white"
-                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+              range === r ? "bg-white/10 text-white" : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
             )}
           >
             {r}
           </span>
         ))}
       </div>
-      <DeltaIndicator
-        current={erDelta.current}
-        previous={erDelta.previous}
-        unit="%"
-        timeframe="5m ago"
-        invertColors
-        decimals={1}
-      />
-      <div className="min-h-[120px] w-full min-w-0 flex-1">
-        <GraphMainChart
-          data={data}
-          range={range}
-          height={chartH}
-          gradientId={`tp-${uid}`}
-        />
+      <DeltaIndicator current={erDelta.current} previous={erDelta.previous} unit="%" timeframe="5m ago" invertColors decimals={1} />
+      <div className="min-h-[140px] w-full min-w-0 flex-1">
+        <GraphMainChart data={data} range={range} height={chartH} gradientId={`tp-${uid}`} />
       </div>
     </div>
   );
 }
 
+// ── Gauge widgets — CPU & Memory ───────────────────────────────────────────
+
 function CpuBody() {
   const tileSize = useWidgetSize();
-  const [v, setV] = useState(() => gaugeValue(Date.now(), "cpu"));
-  const [prevV, setPrevV] = useState(() => gaugeValue(Date.now(), "cpu"));
-  useEffect(() => {
-    const id = setInterval(() => {
-      setV((cur) => {
-        const next = gaugeValue(Date.now(), "cpu");
-        setPrevV(cur);
-        return next;
-      });
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
+  const series = useDashboardStore(s => s.extendedMetrics['cpu'] ?? EMPTY);
+  const { current, previous } = windowDelta(series);
+  if (series.length === 0) return <NoData label="node exporter required" />;
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
-      <RadialGauge value={v} label="" size={tileSize === "2x2" ? "lg" : "md"} />
-      <DeltaIndicator
-        current={v}
-        previous={prevV}
-        unit="%"
-        invertColors
-        decimals={0}
-      />
+      <RadialGauge value={current} label="" size={tileSize === "2x2" ? "lg" : "md"} />
+      <DeltaIndicator current={current} previous={previous} unit="%" invertColors decimals={0} />
     </div>
   );
 }
 
 function MemoryBody() {
   const tileSize = useWidgetSize();
-  const [v, setV] = useState(() => gaugeValue(Date.now() + 99, "mem"));
-  const [prevV, setPrevV] = useState(() => gaugeValue(Date.now() + 99, "mem"));
-  useEffect(() => {
-    const id = setInterval(() => {
-      setV((cur) => {
-        const next = gaugeValue(Date.now() + 99, "mem");
-        setPrevV(cur);
-        return next;
-      });
-    }, 2000);
-    return () => clearInterval(id);
-  }, []);
-  const { used, total } = memoryGb(v);
+  const series = useDashboardStore(s => s.extendedMetrics['memory'] ?? EMPTY);
+  const { current, previous } = windowDelta(series);
+  const { used, total } = memoryGb(current);
+  if (series.length === 0) return <NoData label="node exporter required" />;
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-1">
       <RadialGauge
-        value={v}
+        value={current}
         label=""
         sublabel={`${used.toFixed(1)} / ${total} GB`}
         size={tileSize === "2x2" ? "lg" : "md"}
       />
-      <DeltaIndicator
-        current={v}
-        previous={prevV}
-        unit="%"
-        invertColors
-        decimals={0}
-      />
+      <DeltaIndicator current={current} previous={previous} unit="%" invertColors decimals={0} />
     </div>
   );
 }
 
+// ── Connections ────────────────────────────────────────────────────────────
+
 function ConnectionsBody() {
   const tileSize = useWidgetSize();
-  const data = useMemo(() => generateStackedConnections("5m"), []);
+  const series = useDashboardStore(s => s.extendedMetrics['connections'] ?? EMPTY);
+  const { current, previous } = windowDelta(series);
   const uid = useId().replace(/:/g, "");
   const chartH = chartHeightForTile(tileSize);
-  const totals = useMemo(() => {
-    if (data.length === 0) return { current: 0, previous: 0 };
-    const first = data[0]!;
-    const last = data[data.length - 1]!;
-    const prev = first.h1 + first.h2 + first.ws;
-    const cur = last.h1 + last.h2 + last.ws;
-    return { current: cur, previous: prev };
-  }, [data]);
+
+  if (series.length === 0) return <NoData label="node_netstat_Tcp_CurrEstab" />;
+
+  // Build a simple stacked-looking area from the single series
+  const data = series.map(p => ({
+    t: p.timestamp,
+    total: p.value,
+  }));
+
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col justify-between gap-2">
       <div className="shrink-0">
         <p className="font-numeric-dial text-3xl text-[var(--accent-cyan)]">
-          <CountUp value={totals.current} />{" "}
-          <span className="text-base font-medium text-[var(--text-tertiary)]">
-            conns
-          </span>
+          <CountUp value={current} />{" "}
+          <span className="text-base font-medium text-[var(--text-tertiary)]">conns</span>
         </p>
-        <DeltaIndicator
-          current={totals.current}
-          previous={totals.previous}
-          unit="conns"
-          invertColors={false}
-        />
+        <DeltaIndicator current={current} previous={previous} unit="conns" invertColors={false} />
       </div>
       <ResponsiveContainer width="100%" height={chartH}>
-        <AreaChart
-          data={data}
-          margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-        >
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id={`c1-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#4d7cfe" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#4d7cfe" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id={`c2-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.3} />
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.35} />
               <stop offset="100%" stopColor="#00e5ff" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id={`c3-${uid}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffb020" stopOpacity={0.28} />
-              <stop offset="100%" stopColor="#ffb020" stopOpacity={0} />
             </linearGradient>
           </defs>
           <CartesianGrid stroke="var(--grid-line)" vertical={false} />
@@ -502,50 +361,25 @@ function ConnectionsBody() {
             content={({ payload }) =>
               payload?.length ? (
                 <div className="font-numeric-dial rounded-lg border border-white/[0.1] bg-black px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-                  HTTP/1.1 {Math.round(Number(payload[0]?.value))} · HTTP/2{" "}
-                  {Math.round(Number(payload[1]?.value))} · WS{" "}
-                  {Math.round(Number(payload[2]?.value))}
+                  {Math.round(Number(payload[0]?.value))} connections
                 </div>
               ) : null
             }
           />
-          <Area
-            type="natural"
-            dataKey="h1"
-            stackId="a"
-            stroke="#4d7cfe"
-            fill={`url(#c1-${uid})`}
-          />
-          <Area
-            type="natural"
-            dataKey="h2"
-            stackId="a"
-            stroke="#00e5ff"
-            fill={`url(#c2-${uid})`}
-          />
-          <Area
-            type="natural"
-            dataKey="ws"
-            stackId="a"
-            stroke="#ffb020"
-            fill={`url(#c3-${uid})`}
-          />
+          <Area type="natural" dataKey="total" stroke="#00e5ff" fill={`url(#c1-${uid})`} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
+// ── Anomaly score ──────────────────────────────────────────────────────────
+
 function AnomalyBody() {
-  const anomalies = useDashboardStore((s) => s.anomalies);
-  const isFail = useDashboardStore((s) => s.isSimulatingFailure);
-  const score = useMemo(
-    () => anomalyScoreFromStore(anomalies.length, isFail),
-    [anomalies.length, isFail],
-  );
+  const score = useDashboardStore(s => s.anomalyScore);
   const prevScore = useMemo(
-    () => syntheticPreviousValue(score, anomalies.length * 7919 + (isFail ? 3 : 1)),
-    [score, anomalies.length, isFail],
+    () => syntheticPreviousValue(score, Math.round(score * 1e6)),
+    [score],
   );
   return (
     <div className="flex min-h-0 flex-1 flex-col justify-between gap-3">
@@ -560,12 +394,7 @@ function AnomalyBody() {
         >
           <CountUp value={score} decimals={2} />
         </p>
-        <DeltaIndicator
-          current={score}
-          previous={prevScore}
-          invertColors
-          decimals={2}
-        />
+        <DeltaIndicator current={score} previous={prevScore} invertColors decimals={2} />
       </div>
       <div className="h-2 w-full shrink-0 overflow-hidden rounded-full bg-white/10">
         <div
@@ -577,117 +406,110 @@ function AnomalyBody() {
   );
 }
 
-function serviceMapAbbr(displayName: string): string {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
-  }
-  return displayName.slice(0, 2).toUpperCase();
-}
+// ── Service map ────────────────────────────────────────────────────────────
 
 function ServiceMapBody() {
   const tileSize = useWidgetSize();
-  const services = useDashboardStore((s) => s.services);
-  const maxNodes = tileSize === "1x1" ? 4 : tileSize === "2x2" ? 6 : 5;
-  const nodes = services.slice(0, maxNodes);
+  const services = useDashboardStore(s => s.services);
+  const isLoading = useDashboardStore(s => s.isLoading);
 
-  const ring = cn(
-    "font-numeric-dial flex shrink-0 items-center justify-center rounded-full border-2 bg-[rgba(255,255,255,0.07)] uppercase tracking-wide text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]",
-    tileSize === "2x2" && "h-[4.5rem] w-[4.5rem] text-sm",
-    tileSize === "3x1" && "h-14 w-14 text-xs",
-    tileSize === "2x1" && "h-12 w-12 text-xs",
-    tileSize === "1x1" && "h-11 w-11 text-[10px]",
-  );
+  const counts = useMemo(() => {
+    const healthy = services.filter(s => s.status === 'healthy').length
+    const degraded = services.filter(s => s.status === 'degraded').length
+    const down = services.filter(s => s.status === 'down').length
+    return { healthy, degraded, down, total: services.length }
+  }, [services])
 
-  const labelClass = cn(
-    "w-full text-center font-medium leading-snug text-[var(--text-secondary)] [font-family:var(--font-ui)]",
-    tileSize === "2x2" && "text-[13px]",
-    tileSize === "3x1" && "text-[12px]",
-    (tileSize === "2x1" || tileSize === "1x1") && "text-[11px]",
-  );
+  const healthyPct = useMemo(
+    () => counts.total === 0 ? 100 : (counts.healthy / counts.total) * 100,
+    [counts],
+  )
 
-  const healthyPct = useMemo(() => {
-    const list = services.slice(0, maxNodes);
-    if (list.length === 0) return 100;
-    const n = list.filter((s) => s.status === "healthy").length;
-    return (n / list.length) * 100;
-  }, [services, maxNodes]);
   const prevHealthyPct = useMemo(
-    () => syntheticPreviousValue(healthyPct, services.length + maxNodes + 501),
-    [healthyPct, services.length, maxNodes],
-  );
+    () => syntheticPreviousValue(healthyPct, services.length + 501),
+    [healthyPct, services.length],
+  )
+
+  if (isLoading && services.length === 0) return <NoData label="loading services…" />;
+  if (services.length === 0) return <NoData label="no services discovered" />;
+
+  const pieData = [
+    { name: 'Healthy', value: counts.healthy, color: 'var(--accent-green)' },
+    { name: 'Degraded', value: counts.degraded, color: 'var(--accent-amber)' },
+    { name: 'Down', value: counts.down, color: 'var(--accent-red)' },
+  ].filter(d => d.value > 0)
+
+  const compact = tileSize === '1x1'
+  const showPie = !compact || services.length > 1
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col justify-center gap-2 overflow-x-auto overflow-y-hidden pb-0.5">
-      <div className="shrink-0 px-1">
-        <p className="font-numeric-dial text-2xl text-[var(--text-primary)]">
-          <CountUp value={healthyPct} decimals={0} />
-          <span className="text-sm font-medium text-[var(--text-tertiary)]">
-            % healthy
-          </span>
-        </p>
-        <DeltaIndicator
-          current={healthyPct}
-          previous={prevHealthyPct}
-          unit="%"
-          invertColors={false}
-          decimals={0}
-        />
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <div className="flex items-center gap-3">
+        {showPie && (
+          <div className="shrink-0" style={{ width: compact ? 56 : 64, height: compact ? 56 : 64 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%" cy="50%"
+                  innerRadius={compact ? 16 : 19}
+                  outerRadius={compact ? 26 : 30}
+                  dataKey="value"
+                  strokeWidth={0}
+                  isAnimationActive={false}
+                >
+                  {pieData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        <div className="min-w-0">
+          <p className="font-numeric-dial text-2xl leading-none text-[var(--text-primary)]">
+            <CountUp value={healthyPct} decimals={0} />
+            <span className="text-sm font-medium text-[var(--text-tertiary)]">% up</span>
+          </p>
+          <DeltaIndicator current={healthyPct} previous={prevHealthyPct} unit="%" invertColors={false} decimals={0} />
+          <p className="mt-1 text-[10px] text-[var(--text-tertiary)] [font-family:var(--font-ui)]">
+            {counts.healthy}↑ {counts.degraded > 0 ? `${counts.degraded}⚠ ` : ''}{counts.down > 0 ? `${counts.down}↓ ` : ''}{counts.total} total
+          </p>
+        </div>
       </div>
-      <div className="flex min-w-0 items-center justify-center">
-        {nodes.map((s, i) => {
-          const color =
-            s.status === "healthy"
-              ? "var(--accent-green)"
-              : s.status === "degraded"
-                ? "var(--accent-amber)"
-                : "var(--accent-red)";
-          const title = `${s.displayName} · ${s.status} · ${Math.round(s.latency)} ms`;
+
+      {/* Service rows */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto [scrollbar-width:none]">
+        {services.slice(0, compact ? 3 : 6).map(svc => {
+          const color = svc.status === 'healthy' ? 'var(--accent-green)' : svc.status === 'degraded' ? 'var(--accent-amber)' : 'var(--accent-red)'
           return (
-            <Fragment key={s.id}>
-              {i > 0 && (
-                <div
-                  className="h-px min-w-[6px] flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent"
-                  aria-hidden
-                />
+            <div key={svc.id} className="flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
+              <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--text-secondary)]">{svc.name}</span>
+              {svc.latency > 0 && (
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">{Math.round(svc.latency)}ms</span>
               )}
-              <div
-                className={cn(
-                  "flex max-w-[min(100%,6.75rem)] shrink-0 flex-col items-center gap-2 px-1 sm:max-w-[7.5rem]",
-                  tileSize === "2x2" && "max-w-[8.5rem] gap-2.5",
-                )}
-              >
-                <div
-                  className={ring}
-                  style={{ borderColor: color }}
-                  title={title}
-                >
-                  {serviceMapAbbr(s.displayName)}
-                </div>
-                <p
-                  className={cn(labelClass, "line-clamp-2")}
-                  title={s.displayName}
-                >
-                  {s.displayName}
-                </p>
-              </div>
-            </Fragment>
-          );
+              {svc.errorRate > 0 && (
+                <span className="shrink-0 font-mono text-[10px] tabular-nums text-red-400">{svc.errorRate.toFixed(1)}%↑</span>
+              )}
+            </div>
+          )
         })}
       </div>
     </div>
   );
 }
 
+// ── Incident timeline ──────────────────────────────────────────────────────
+
 function IncidentTimelineBody() {
-  const events = useDashboardStore((s) => s.incidentTimeline);
-  const [now, setNow] = useState(() => Date.now());
+  const events = useDashboardStore(s => s.incidentTimeline);
+  // Use 0 on server, set real value after mount to avoid hydration mismatch
+  const [now, setNow] = useState(0);
   const len = events.length;
-  const previousIncidentCount = useMemo(
-    () => syntheticPreviousValue(len, len * 997 + 13),
-    [len],
-  );
+  const previousIncidentCount = useMemo(() => syntheticPreviousValue(len, len * 997 + 13), [len]);
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -701,21 +523,14 @@ function IncidentTimelineBody() {
         invertColors
         decimals={0}
       />
-      <div
-        className={cn(
-          "relative h-[88px] w-full shrink-0",
-          events.length === 0 ? "flex items-center" : "",
-        )}
-      >
+      <div className={cn("relative h-[88px] w-full shrink-0", events.length === 0 ? "flex items-center" : "")}>
         {events.length > 0 && (
           <div className="absolute left-0 right-0 top-1/2 h-px bg-white/15" />
         )}
         {events.length === 0 ? (
-          <p className="px-1 text-[13px] text-[var(--text-tertiary)]">
-            No incidents in session.
-          </p>
+          <p className="px-1 text-[13px] text-[var(--text-tertiary)]">No incidents in session.</p>
         ) : (
-          events.map((ev) => {
+          events.map(ev => {
             const t = (ev.timestamp - (now - day)) / day;
             if (t < 0 || t > 1) return null;
             return (
@@ -729,6 +544,103 @@ function IncidentTimelineBody() {
           })
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Service stats fallback for widgets with no Prometheus data ─────────────
+
+function ServiceStatsBody() {
+  const services = useDashboardStore(s => s.services)
+  if (services.length === 0) return null
+
+  const maxRR = Math.max(...services.map(s => s.requestCount), 0.001)
+  const shown = services.slice(0, 5)
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col justify-center gap-1.5 overflow-hidden">
+      <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.15em] text-[var(--text-tertiary)] [font-family:var(--font-ui)]">
+        Services · req/s
+      </p>
+      {shown.map(svc => {
+        const color =
+          svc.status === 'healthy' ? 'var(--accent-green)'
+          : svc.status === 'degraded' ? 'var(--accent-amber)'
+          : 'var(--accent-red)'
+        const pct = Math.max((svc.requestCount / maxRR) * 100, svc.requestCount > 0 ? 4 : 0)
+        return (
+          <div key={svc.id} className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: color }} />
+            <span className="min-w-0 flex-1 truncate font-mono text-[10px] text-[var(--text-secondary)]">
+              {svc.name}
+            </span>
+            <div className="w-16 h-1 shrink-0 overflow-hidden rounded-full bg-white/10">
+              <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${pct}%`, background: color }} />
+            </div>
+            <span className="w-10 shrink-0 text-right font-mono text-[10px] tabular-nums text-[var(--text-tertiary)]">
+              {svc.requestCount > 0 ? svc.requestCount.toFixed(1) : '—'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** Shows service stats if available, otherwise NoData */
+function ExtendedNoData({ widgetId }: { widgetId: WidgetId }) {
+  const hasServices = useDashboardStore(s => s.services.length > 0)
+  if (hasServices) return <ServiceStatsBody />
+  return <NoData label={`no metric for ${widgetId}`} />
+}
+
+// ── Extended metric widget (real Prometheus data or service stats fallback) ──
+
+function ExtendedMetricBody({
+  widgetId,
+  unit,
+  color,
+  textClass = "text-[var(--accent-cyan)]",
+  invertDelta = false,
+  decimals = 0,
+  clampMax,
+}: {
+  widgetId: WidgetId;
+  unit: string;
+  color: string;
+  textClass?: string;
+  invertDelta?: boolean;
+  decimals?: number;
+  clampMax?: number;
+}) {
+  const raw = useDashboardStore(s => s.extendedMetrics[widgetId] ?? EMPTY);
+  const series = useMemo(
+    () =>
+      clampMax != null
+        ? raw.map(p => ({ ...p, value: Math.min(p.value, clampMax) }))
+        : raw,
+    [raw, clampMax],
+  );
+  const { current, previous } = windowDelta(series);
+
+  if (series.length === 0) return <ExtendedNoData widgetId={widgetId} />;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col justify-between gap-2">
+      <div>
+        <p className={cn("font-numeric-dial text-4xl", textClass)}>
+          <CountUp value={current} decimals={decimals} />{" "}
+          <span className="text-lg font-medium text-[var(--text-tertiary)]">{unit}</span>
+        </p>
+        <DeltaIndicator
+          current={current}
+          previous={previous}
+          unit={unit}
+          invertColors={invertDelta}
+          decimals={decimals}
+        />
+      </div>
+      <SparkLine data={series} color={color} />
     </div>
   );
 }

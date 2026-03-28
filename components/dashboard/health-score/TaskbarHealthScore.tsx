@@ -67,7 +67,7 @@ export function TaskbarHealthScore() {
       {/* Hover / focus-within panel — descendant hover keeps parent .group:hover true */}
       <div
         className={cn(
-          'pointer-events-none absolute left-0 top-full z-[70] pt-2',
+          'pointer-events-none absolute right-0 top-full z-[70] pt-2',
           'w-[min(calc(100vw-2rem),320px)] max-w-[min(calc(100vw-2rem),320px)]',
           'origin-top scale-95 opacity-0 transition-[opacity,transform] duration-200 ease-out',
           'group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100',

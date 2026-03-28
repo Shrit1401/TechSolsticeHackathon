@@ -3,7 +3,6 @@
 import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { computeHealthScore, scoreToColorHex, type HealthLabel, type HealthScoreResult } from '@/lib/healthScore'
 import { useDashboardStore } from '@/store/dashboardStore'
-import { anomalyScoreFromStore, gaugeValue } from '@/lib/widgetMockData'
 
 const HISTORY_MAX = 720
 const ONE_H_MS = 60 * 60 * 1000
@@ -34,25 +33,27 @@ function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length
 }
 
-function buildMetricInput(timeSeed: number) {
-  const { metrics, anomalies, isSimulatingFailure } = useDashboardStore.getState()
+function buildMetricInput() {
+  const { metrics, extendedMetrics, anomalyScore } = useDashboardStore.getState()
   const rr = metrics.requestRate
   const er = metrics.errorRate
   const lat = metrics.latency
+  const cpu = extendedMetrics['cpu']
+  const mem = extendedMetrics['memory']
 
   const requestRate = rr.length ? rr[rr.length - 1]!.value : 0
   const errorRate = er.length ? er[er.length - 1]!.value : 0
   const latencyP99 = lat.length ? lat[lat.length - 1]!.value : 0
-  const baseline = mean(rr.map(p => p.value)) || requestRate || 450
+  const baseline = mean(rr.map(p => p.value)) || requestRate || 1
 
   return {
     requestRate,
     requestRateBaseline: baseline > 0 ? baseline : 1,
     errorRate,
     latencyP99,
-    cpuUtilization: gaugeValue(timeSeed, 'cpu'),
-    memoryUtilization: gaugeValue(timeSeed + 99, 'mem'),
-    anomalyScore: anomalyScoreFromStore(anomalies.length, isSimulatingFailure),
+    cpuUtilization: cpu?.length ? cpu[cpu.length - 1]!.value : 0,
+    memoryUtilization: mem?.length ? mem[mem.length - 1]!.value : 0,
+    anomalyScore,
   }
 }
 
@@ -66,8 +67,8 @@ function latestMetricTimestamp(metrics: { requestRate: { timestamp: number }[]; 
 
 function useHealthScoreState(): HealthScoreContextValue {
   const metrics = useDashboardStore(s => s.metrics)
-  const anomalies = useDashboardStore(s => s.anomalies)
-  const isSimulatingFailure = useDashboardStore(s => s.isSimulatingFailure)
+  const extendedMetrics = useDashboardStore(s => s.extendedMetrics)
+  const anomalyScore = useDashboardStore(s => s.anomalyScore)
 
   const [displayScore, setDisplayScore] = useState(0)
   const [history, setHistory] = useState<ScoreHistoryPoint[]>([])
@@ -85,10 +86,10 @@ function useHealthScoreState(): HealthScoreContextValue {
 
   const rawComputed = useMemo(() => {
     if (!hasData) return null
-    void anomalies.length
-    void isSimulatingFailure
-    return computeHealthScore(buildMetricInput(metricTime))
-  }, [hasData, metricTime, anomalies.length, isSimulatingFailure])
+    void extendedMetrics
+    void anomalyScore
+    return computeHealthScore(buildMetricInput())
+  }, [hasData, metricTime, extendedMetrics, anomalyScore])
 
   useEffect(() => {
     if (!rawComputed || !hasData) return
@@ -191,7 +192,6 @@ function useHealthScoreState(): HealthScoreContextValue {
     breakdown: rawResult?.breakdown ?? {
       latency: 0,
       errors: 0,
-      throughput: 0,
       cpu: 0,
       memory: 0,
       anomaly: 0,

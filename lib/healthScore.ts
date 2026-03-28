@@ -17,7 +17,6 @@ export interface HealthScoreResult {
   breakdown: {
     latency: number
     errors: number
-    throughput: number
     cpu: number
     memory: number
     anomaly: number
@@ -26,11 +25,10 @@ export interface HealthScoreResult {
 }
 
 export const HEALTH_WEIGHTS = {
-  latency: 0.25,
-  errors: 0.25,
-  throughput: 0.15,
-  cpu: 0.12,
-  memory: 0.1,
+  latency: 0.30,
+  errors: 0.30,
+  cpu: 0.15,
+  memory: 0.12,
   anomaly: 0.13,
 } as const
 
@@ -128,22 +126,21 @@ function labelFromScore(overall: number): HealthLabel {
 export function computeHealthScore(input: MetricInput): HealthScoreResult {
   const latency = scoreLatency(input.latencyP99)
   const errors = scoreErrors(input.errorRate)
-  const throughput = scoreThroughputStability(input.requestRate, input.requestRateBaseline)
   const cpu = scoreCpu(input.cpuUtilization)
   const memory = scoreMemory(input.memoryUtilization)
   const anomaly = scoreAnomaly(input.anomalyScore)
 
-  const breakdown = { latency, errors, throughput, cpu, memory, anomaly }
+  const breakdown = { latency, errors, cpu, memory, anomaly }
 
   let overall =
     latency * WEIGHTS.latency +
     errors * WEIGHTS.errors +
-    throughput * WEIGHTS.throughput +
     cpu * WEIGHTS.cpu +
     memory * WEIGHTS.memory +
     anomaly * WEIGHTS.anomaly
 
-  const minSub = Math.min(latency, errors, throughput, cpu, memory, anomaly)
+  // Cap only on genuinely critical sub-scores (not missing data)
+  const minSub = Math.min(latency, errors, cpu, memory, anomaly)
   if (minSub < 20) overall = Math.min(overall, 45)
 
   overall = Math.max(0, Math.min(100, Math.round(overall)))

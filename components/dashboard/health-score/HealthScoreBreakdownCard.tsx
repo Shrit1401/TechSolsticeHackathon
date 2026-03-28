@@ -7,7 +7,6 @@ import { cn } from '@/lib/utils'
 const ROWS: { key: keyof typeof HEALTH_WEIGHTS; label: string }[] = [
   { key: 'latency', label: 'Latency' },
   { key: 'errors', label: 'Errors' },
-  { key: 'throughput', label: 'Throughput' },
   { key: 'cpu', label: 'CPU' },
   { key: 'memory', label: 'Memory' },
   { key: 'anomaly', label: 'Anomaly' },

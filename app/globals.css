@@ -62,7 +62,7 @@
 /* ───── Design tokens (dashboard theme) ───── */
 :root,
 .dark {
-  --background: #000000;
+  --background: #02040a;
   --surface-raised: #111118;
   --foreground: #ffffff;
   --text-secondary: #9ca3af;
@@ -103,22 +103,25 @@
   --sidebar-ring: #00d4ff;
 
   /* Premium widget grid (spec) */
-  --bg-primary: #000000;
-  --bg-card: #000000;
-  --bg-card-hover: #0a0a0a;
-  --bg-card-border: rgba(255, 255, 255, 0.2);
-  --accent-cyan: #00e5ff;
+  --bg-primary: #02040a;
+  --bg-card: #070b12;
+  --bg-card-hover: #0c1220;
+  --bg-card-border: rgba(255, 255, 255, 0.12);
+  --accent-cyan: #00f0ff;
   --accent-amber: #ffb020;
-  --accent-red: #ff4d6a;
-  --accent-green: #00c853;
-  --accent-blue: #4d7cfe;
+  --accent-red: #ff3d5a;
+  --accent-green: #00e676;
+  --accent-blue: #536dfe;
   --text-primary: #e8ecf1;
   --text-secondary: #7a8ba0;
   --text-tertiary: #4a5568;
-  --chart-area-fill: rgba(0, 229, 255, 0.08);
-  --chart-line-primary: #00e5ff;
-  --chart-line-secondary: #ff4d6a;
-  --grid-line: rgba(255, 255, 255, 0.04);
+  --chart-area-fill: rgba(0, 240, 255, 0.12);
+  --chart-line-primary: #00f0ff;
+  --chart-line-secondary: #ff3d5a;
+  --grid-line: rgba(255, 255, 255, 0.05);
+  --glow-cyan: 0 0 20px rgba(0,240,255,0.35);
+  --glow-red: 0 0 20px rgba(255,61,90,0.35);
+  --glow-green: 0 0 20px rgba(0,230,118,0.35);
 }
 
 /* ───── Base layer ───── */
@@ -129,7 +132,7 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    background-color: #000000;
+    background-color: #02040a;
     min-height: 100vh;
     font-family: 'Clash Display', sans-serif;
     font-weight: 400;

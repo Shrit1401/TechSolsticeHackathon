@@ -21,8 +21,6 @@ type BaseWidgetProps = {
   dragListeners: DraggableSyntheticListeners | undefined;
   onExpand: () => void;
   onResize?: () => void;
-  /** Adaptive v2: left-edge stripe via data-adaptive-status */
-  adaptiveTileStatus?: "healthy" | "watch" | "critical" | null;
   children: React.ReactNode;
 };
 
@@ -39,7 +37,6 @@ export const BaseWidget = ({
   onExpand,
   onResize,
   status,
-  adaptiveTileStatus,
   children,
 }: BaseWidgetProps) => {
   const layoutId = `widget-card-${id}`;
@@ -47,11 +44,10 @@ export const BaseWidget = ({
   return (
     <motion.article
       data-widget-id={id}
-      data-adaptive-status={adaptiveTileStatus ?? undefined}
       layoutId={layoutId}
       className={cn(
-        "metric-card group relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[20px] border border-white/20 bg-black p-6 shadow-[0_4px_24px_rgba(0,0,0,0.45)] transition-[border-color,box-shadow,opacity,transform] duration-200 [font-family:var(--font-ui)]",
-        "hover:border-white/35 hover:shadow-[0_4px_28px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.06)]",
+        "metric-card group relative flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[22px] border border-white/[0.14] bg-gradient-to-b from-black to-black/95 p-6 shadow-[0_4px_32px_rgba(0,0,0,0.5)] transition-[border-color,box-shadow,opacity,transform] duration-200 [font-family:var(--font-ui)]",
+        "hover:border-white/28 hover:shadow-[0_8px_40px_rgba(0,0,0,0.55),0_0_0_1px_rgba(255,255,255,0.05)]",
         colSpanClass,
         editMode && "ring-1 ring-white/25",
         isDragging && "z-50 scale-[1.04] shadow-[0_16px_48px_rgba(0,0,0,0.5)]",

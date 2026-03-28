@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Activity,
   ArrowRight,
@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { DocFigure } from "@/components/doc/DocFigure";
+import { DocPdfDownload } from "@/components/doc/DocPdfDownload";
 import { DocHackathonFooter } from "@/components/doc/DocHackathonFooter";
 import { MathDisplay } from "@/components/doc/KatexMath";
 import {
@@ -100,6 +101,8 @@ const LATEX_SMOOTH = String.raw`\text{final\_confidence} = \operatorname{mean}(\
 const LATEX_ROOT = String.raw`\text{root\_cause} = \operatorname*{arg\,max}_{i} \,\text{confidence\_service}_i`;
 
 export default function ArchitectureDoc() {
+  const pdfRef = useRef<HTMLElement>(null);
+
   return (
     <div className="relative z-10 min-h-screen overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_90%_60%_at_50%_-15%,rgba(0,229,255,0.14),transparent_55%)]" />
@@ -114,6 +117,7 @@ export default function ArchitectureDoc() {
             ← Control center
           </Link>
           <div className="flex flex-wrap items-center justify-end gap-3">
+            <DocPdfDownload targetRef={pdfRef} />
             <span className="hidden rounded-full border border-amber-500/20 bg-amber-500/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-200/80 sm:inline">
               TechSolstice 2026
             </span>
@@ -122,7 +126,11 @@ export default function ArchitectureDoc() {
         </div>
       </header>
 
-      <main className="relative mx-auto max-w-6xl px-5 pb-32 pt-14 sm:px-8">
+      <main
+        ref={pdfRef}
+        id="architecture-doc-pdf"
+        className="relative mx-auto max-w-6xl bg-black px-5 pb-32 pt-14 sm:px-8"
+      >
         <motion.section
           custom={0}
           initial="hidden"

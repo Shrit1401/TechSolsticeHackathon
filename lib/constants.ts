@@ -22,7 +22,7 @@ export const WIDGET_IDS = [
 
 export type WidgetId = (typeof WIDGET_IDS)[number];
 
-/** Grid modes: 1×1 compact · 2×1 double width · 3×1 full row width · 2×2 double width + height */
+/** Grid modes: 1×1 · 2×1 · 3×1 · 2×2 */
 export type WidgetSize = "1x1" | "2x1" | "3x1" | "2x2";
 
 export const WIDGET_SIZE_CYCLE: readonly WidgetSize[] = [
@@ -42,11 +42,7 @@ export function nextWidgetSize(current: WidgetSize): WidgetSize {
   return WIDGET_SIZE_CYCLE[next];
 }
 
-/** Tailwind classes for the dashboard grid. Default: 3 columns from `md`. Compact: 5 columns from `lg`, every tile one cell (stored sizes ignored for layout). */
-export function widgetGridClass(size: WidgetSize, compact = false): string {
-  if (compact) {
-    return "col-span-1 row-span-1";
-  }
+export function widgetGridClass(size: WidgetSize): string {
   switch (size) {
     case "1x1":
       return "col-span-1 row-span-1";
@@ -61,11 +57,16 @@ export function widgetGridClass(size: WidgetSize, compact = false): string {
   }
 }
 
-/** Default order and sizes per spec */
-export const DEFAULT_WIDGET_ORDER: WidgetId[] = [...WIDGET_IDS];
+/** Widgets shown in the hero section — excluded from the draggable grid */
+export const HERO_WIDGET_IDS: readonly WidgetId[] = ['request-rate', 'latency', 'error-rate'] as const
+
+/** Default order — latency and throughput are in the hero section, not the grid */
+export const DEFAULT_WIDGET_ORDER: WidgetId[] = WIDGET_IDS.filter(
+  id => id !== 'latency' && id !== 'throughput'
+)
 
 export const DEFAULT_WIDGET_SIZES: Record<WidgetId, WidgetSize> = {
-  "request-rate": "2x1",
+  "request-rate": "3x1",
   "error-rate": "2x1",
   latency: "2x1",
   throughput: "2x1",
@@ -85,7 +86,7 @@ export const DEFAULT_WIDGET_SIZES: Record<WidgetId, WidgetSize> = {
   "db-connections": "1x1",
 };
 
-export const LAYOUT_STORAGE_KEY = "aiops-widget-layout-v3";
+export const LAYOUT_STORAGE_KEY = "aiops-widget-layout-v4";
 
 export type StoredLayout = {
   v: 1;
